@@ -27,7 +27,7 @@ int ex2(){
         int parentid = getppid();
 
         printf("[FILHO] ## My PID: %d ## Parent PID: %d ##\n", myid, parentid);
-        sleep(10);
+        sleep(2);
         _exit(100);
 
     } else { //[PAI]
@@ -39,11 +39,10 @@ int ex2(){
         int filhodopai = res;
 
         if(WIFEXITED(status)){
-            printf("[PAI] ## My PID: %d, Parent PID: %d, Son PID: %d , SON WEXITSTATUS %d ##\n", myid, parentid, filhodopai, WEXITSTATUS(status));
+            printf("[PAI] ## My PID: %d, Parent PID: %d, Son PID: %d , SON WEXITSTATUS: %d ##\n", myid, parentid, filhodopai, WEXITSTATUS(status));
         } else {
             printf("[PAI] ## Son's Process didn't finish successfully ##"); //testar isto recorrendo ao ps e kill -9 [pid]
         }
-
     }
     return 0;
 }
@@ -123,9 +122,7 @@ int ex5(int num){
     int matrix[rows][columns];
 
     int res;
-    int pids[rows];
-    int randmax = 50000;
-    int obj = 679;
+    int randmax = 3000;
 
     srand(time(NULL));
 
@@ -137,33 +134,75 @@ int ex5(int num){
     
     printf("Matriz inicializada...\n");
 
-    for(int aux = 0; aux < rows; aux++){
+    for(int lin = 0; lin < rows; lin++){
         res = fork();
 
         if(res == 0){
-            printf("[PROCESSO FILHO %d] ## Parent PID: %d, Searching in row %d\n", getpid(), getppid(), aux+1);
+            printf("[PROCESSO FILHO %d] Searching in row %d\n", getpid(), lin+1);
             for(int col = 0; col < columns; col++){
-                if(matrix[aux][col] == num){
-                    _exit(aux);
+                if(matrix[lin][col] == num){
+                    _exit(lin+1);
                 }
             }
             _exit(-1);
-        }//else {
-            //pids[i] = res;
-        //}
+        }
     }
 
-    for(int aux = 0; aux < rows; aux++){
+    for(int lin = 0; lin < rows; lin++){
         int status;
         wait(&status);
         //waitpid(pids[i], &status, 0);
         if(WEXITSTATUS(status) < 255){ //range 0 a 255, -1 excluído
-            printf("[PROCESSO PAI   %d] Encontrei o número na linha %d!", getpid(), WEXITSTATUS(status));
-            return 0;
+            printf("[PROCESSO PAI   %d] Found in line %d!\n", getpid(), WEXITSTATUS(status));
         }
     }
-    return 1;
+    return 0;
+}
 
+
+int ex6(int num){ //same as above but with additions
+    int rows = 10;
+    int columns = 1000;
+    int matrix[rows][columns];
+
+    int res;
+    int randmax = 3000;
+    int pids[rows];  //new
+
+    srand(time(NULL));
+
+    for(int i = 0; i < rows; i++){
+        for (int j = 0; j < columns; j++){
+            matrix[i][j] = rand() % randmax;
+        }
+    }
+    
+    printf("Matriz inicializada...\n");
+
+    for(int lin = 0; lin < rows; lin++){
+        res = fork();
+
+        if(res == 0){
+            printf("[PROCESSO FILHO %d] Searching in row %d\n", getpid(), lin+1);
+            for(int col = 0; col < columns; col++){
+                if(matrix[lin][col] == num){
+                    _exit(lin+1);
+                }
+            }
+            _exit(-1);
+        } else {              //new
+            pids[lin] = res;  //new
+        }                     //new
+    }
+
+    for(int lin = 0; lin < rows; lin++){
+        int status;
+        waitpid(pids[lin], &status, 0);  //new
+        if(WEXITSTATUS(status) < 255){ //range 0 a 255, -1 excluído
+            printf("[PROCESSO PAI   %d] Found in line %d!\n", getpid(), WEXITSTATUS(status));
+        }
+    }
+    return 0;
 }
 
 
@@ -179,7 +218,8 @@ Flag  Function\n\
 -2    Create a child process and print its ID and parent's ID\n\
 -3    Create 10 child sequential processes and print their IDs with ordered exit statuses\n\
 -4    Create 10 child parallel processes and print their IDs with ordered exit statuses\n\
--5    Create child parallel processes to search for number passed as arg in matrix\n\
+-5    Create child parallel processes to search for number passed as arg in matrix (any order)\n\
+-6    Create child parallel processes to search for number passed as arg in matrix (ordered)\n\
 \n\
 Usage: ./program [flag]\n\
 Usage: ./program -5 [number]\n\
@@ -194,8 +234,9 @@ Usage: ./program -5 [number]\n\
     else if(strcmp(flag,"-3") == 0) ex3();
     else if(strcmp(flag,"-4") == 0) ex4();
     else if(strcmp(flag,"-5") == 0) ex5(atoi(argv[2]));
+    else if(strcmp(flag,"-6") == 0) ex6(atoi(argv[2]));
     else {
-        printf("Invalid flag. Usage: ./program [flag]\n");
+        printf("Invalid flag.\n");
         return 1;
     }
 
@@ -203,5 +244,4 @@ Usage: ./program -5 [number]\n\
 }
 
 //gcc -Wall -g gui2.c -o gui2
-//./gui2 [flags]
 //>ps -> Z+ -> processo zombie
