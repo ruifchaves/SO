@@ -1,8 +1,10 @@
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/wait.h>
+#include <sys/wait.h>  //chamadas wait e macros relaciondas
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
 
 int ex1(){
@@ -25,17 +27,23 @@ int ex2(){
         int parentid = getppid();
 
         printf("[FILHO] ## My PID: %d ## Parent PID: %d ##\n", myid, parentid);
-        //sleep(10);
-        //_exit(0);
+        sleep(10);
+        _exit(100);
 
     } else { //[PAI]
-        //int status =0;
-        //wait(&status);
+        int status;
+        wait(&status);
+
         int myid = getpid();
         int parentid = getppid();
         int filhodopai = res;
 
-        printf("[PAI] ## My PID: %d, Parent PID: %d, Son PID: %d ##\n", myid, parentid, filhodopai);
+        if(WIFEXITED(status)){
+            printf("[PAI] ## My PID: %d, Parent PID: %d, Son PID: %d , SON WEXITSTATUS %d ##\n", myid, parentid, filhodopai, WEXITSTATUS(status));
+        } else {
+            printf("[PAI] ## Son's Process didn't finish successfully ##"); //testar isto recorrendo ao ps e kill -9 [pid]
+        }
+
     }
     return 0;
 }
@@ -48,11 +56,10 @@ int ex3(){
         //int res = fork();
         pid_t res = fork();
         if(res == 0){
-            int myid = getpid();
-            int parentid = getppid();
-
-            printf("[PROCESSO FILHO %d] ## My PID: %d, Parent PID: %d ##\n", getpid(), myid, parentid);
+            printf("[PROCESSO FILHO %d] ## Parent PID: %d ##\n", getpid(), getppid());
             
+            sleep(1);
+
             _exit(i);
             //_exit() termina o processo atual com código passado por argumento.
         } else {
@@ -91,8 +98,77 @@ int ex3(){
     return 0;
 }
 
+int ex4(){
+    for(int i=1; i<=10; i++){
+        
+        int res = fork();
+        if(res == 0){
+            printf("[PROCESSO FILHO %d] ## Parent PID: %d ##\n", getpid(), getppid());
+            sleep(1);
+            _exit(i);
+        }
+    }
+
+    for (int i = 1; i <= 10; i++) {
+        int status;
+        wait(&status);
+        printf("[PROCESSO PAI   %d] ## Son's Status: %d, WEXITSTATUS: %d\n", getpid(), status, WEXITSTATUS(status));
+    }
+    return 0;
+}
+
+int ex5(int num){
+    int rows = 10;
+    int columns = 1000;
+    int matrix[rows][columns];
+
+    int res;
+    int pids[rows];
+    int randmax = 50000;
+    int obj = 679;
+
+    srand(time(NULL));
+
+    for(int i = 0; i < rows; i++){
+        for (int j = 0; j < columns; j++){
+            matrix[i][j] = rand() % randmax;
+        }
+    }
+    
+    printf("Matriz inicializada...\n");
+
+    for(int aux = 0; aux < rows; aux++){
+        res = fork();
+
+        if(res == 0){
+            printf("[PROCESSO FILHO %d] ## Parent PID: %d, Searching in row %d\n", getpid(), getppid(), aux+1);
+            for(int col = 0; col < columns; col++){
+                if(matrix[aux][col] == num){
+                    _exit(aux);
+                }
+            }
+            _exit(-1);
+        }//else {
+            //pids[i] = res;
+        //}
+    }
+
+    for(int aux = 0; aux < rows; aux++){
+        int status;
+        wait(&status);
+        //waitpid(pids[i], &status, 0);
+        if(WEXITSTATUS(status) < 255){ //range 0 a 255, -1 excluído
+            printf("[PROCESSO PAI   %d] Encontrei o número na linha %d!", getpid(), WEXITSTATUS(status));
+            return 0;
+        }
+    }
+    return 1;
+
+}
+
+
 int main(int argc, char* argv[]){
-    if (argc != 2) {
+    if (argc != 2 && argc != 3) {
         printf(
 "\n---------------------------------\n\
 Welcome to the program!\n\
@@ -101,9 +177,12 @@ Flag  Function\n\
 ----  --------\n\
 -1    Print the process ID and parent process ID\n\
 -2    Create a child process and print its ID and parent's ID\n\
--3    Create 10 child processes and print their IDs with ordered exit statuses\n\
+-3    Create 10 child sequential processes and print their IDs with ordered exit statuses\n\
+-4    Create 10 child parallel processes and print their IDs with ordered exit statuses\n\
+-5    Create child parallel processes to search for number passed as arg in matrix\n\
 \n\
 Usage: ./program [flag]\n\
+Usage: ./program -5 [number]\n\
 ---------------------------------\n\n");
         return 1;
     }
@@ -113,6 +192,8 @@ Usage: ./program [flag]\n\
     if(strcmp(flag,"-1") == 0) ex1();
     else if(strcmp(flag,"-2") == 0) ex2();
     else if(strcmp(flag,"-3") == 0) ex3();
+    else if(strcmp(flag,"-4") == 0) ex4();
+    else if(strcmp(flag,"-5") == 0) ex5(atoi(argv[2]));
     else {
         printf("Invalid flag. Usage: ./program [flag]\n");
         return 1;

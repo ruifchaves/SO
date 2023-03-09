@@ -125,11 +125,6 @@ int updateAge_v2(long pos, int a){ //pos -> index da pessoa
     return 0;
 }
 
-//ex 6
-    //usar lseek para saber a posicao no fixheiro até ao fim e, como person é tamanho estatico, dividir pelo sizeof(person)
-    //isto da nos o valor do indice da pessoa nova que se vai adicionar
-
-
 bool isNumber(char number[]){
     int i = 0;
     //checking for negative numbers
@@ -152,7 +147,7 @@ Flag  Function\n\
 ----  --------\n\
 -i    Add a new person to the file\n\
 -u    Update the age of a person in the file\n\
--o    Update the age of a person in the file (w/ position)\n\
+-o    Update the age of a person in the file (w/ register number)\n\
 \n\
 Usage: ./program [-i | -u] \"[name]\" [age]\n\
 Usage: ./program [-x] [position] [age]\n\
@@ -174,7 +169,7 @@ Usage: ./program [-x] [position] [age]\n\
     else if(strcmp(flag,"-o") == 0 && isNumber(argv[2]))
         updateAge_v2(atoi(argv[2]), age);
     else {
-        printf("Invalid flag. Usage: ./program [flag]\n");
+        printf("Invalid flag.");
         return 1;
     }
 
