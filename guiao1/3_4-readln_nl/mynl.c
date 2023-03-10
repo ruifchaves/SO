@@ -1,40 +1,42 @@
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
+#include "mynl.h"
 
+ssize_t readln(int fd, char *line, size_t size){
+    ssize_t i = 0;
 
-ssize_t readln(int fd, char* line, size_t size){
-    size_t i = 0;
-
-    for (; i < size && read(fd, &line[i], 1) > 0; i++) {
-        if (line[i] == '\n') //if (((char*) line)[i-1] == '\n')
+    for(; i < size && read(fd, &line[i], 1) > 0; i++){
+        if (((char*) line)[i] == '\n')
             return i;
-    }
-
-
-    return i;
+    } if(i >= size) return -1; //so it doesnt return 0
+    
+    return 0;
 }
 
-
 int main(){
-    size_t size_bytes = 20;
     int i = 1;
-    
-    while (1){
-        
-        char line[size_bytes];
 
-        if (readln(STDIN_FILENO, line, size_bytes) != 0){
-            size_t ret_size = 40;
-            char answer[ret_size];
-            snprintf(answer,ret_size,"     %d  %s", i, line);
-            write(STDOUT_FILENO, answer, sizeof(answer));
+    while(1){
+        char line[LINE_SIZE];
+        memset(line, 0, LINE_SIZE); //!! any remaining chars from previous input are cleared
+
+        size_t ret_size = 35; //has to be > than line's size
+        char ret[ret_size];
+
+        int len = readln(STDIN_FILENO, line, LINE_SIZE);
+        if(len != 0){
+            int size = snprintf(ret, ret_size,"     %5d %s", i, line);
+            write(STDOUT_FILENO, ret, size); //não pode ser sizeof(ret) em vez de size. size: tam do que foi lido; sizeof: tamanho do buffer 20...
+            //ret value should be checked
+
             i++;
-        } else {
-            return 1;
-        }
-    }
 
+        } else if(len == 0){ //enter sem escrita de chars, double line, no increment
+            write(STDOUT_FILENO, "\n", 1); //ret value should be checked
+        } 
+        //else if(len == -1){
+        //    write(STDOUT_FILENO, "           Buffer too small...", 30);
+        //    i++;
+        //}
+    }
+    
     return 0;
 }
