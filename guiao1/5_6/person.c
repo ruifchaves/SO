@@ -177,7 +177,7 @@ Usage: ./program [-x] [position] [age]\n\
         double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC; //stores CPU time used
         printf("updateAge took %f seconds to execute.\n", cpu_time_used);
 
-    } else if(strcmp(flag,"-o") == 0 && isNumber(argv[2])){ //Call updateAge_v2 function and measure time
+    } else if(strcmp(flag,"-o") == 0 && isNumber(argv[2])){ //Call updateAge_v2 function and measure time 
         start = clock();
 
         updateAge_v2(atoi(argv[2]), age);
