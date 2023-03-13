@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <time.h>
 
-
+//1. Implemente um programa que imprima o seu identificador de processo e o do seu pai. Comprove –
+//invocando o comando ps – que o pai do seu processo e o interpretador de comandos que utilizou para o
+//executar.
 int ex1(){
     int myid = getpid();
     int parentid = getppid(); //processo do terminal/linha de comandos
@@ -16,39 +18,37 @@ int ex1(){
     return 0;
 }
 
+
+//2. Implemente um programa que crie um processo filho. Pai e filho devem imprimir o seu identificador de
+//processo e o do seu pai. O pai deve ainda imprimir o PID do seu filho
 int ex2(){
     //ambos estes processos resultantes do fork estao a correr em paralelo
     //como tem poucas instrucoes, acabam em ordens distintas em difs runtimes
+    pid_t pid;
+    int status;
 
-    int res = fork();
-
-    if(res == 0){ //[FILHO]
-        int myid = getpid();
-        int parentid = getppid();
-
-        printf("[FILHO] ## My PID: %d ## Parent PID: %d ##\n", myid, parentid);
+    if((pid = fork()) == 0){
+        //codigo do processo filho
+        printf("[FILHO] ## My PID: %d ## Parent PID: %d ##\n", getpid(), getppid());
         sleep(2);
         _exit(100);
-
-    } else { //[PAI]
-        int status;
+    } else {
+        //codigo do processo pai
         wait(&status);
-
-        int myid = getpid();
-        int parentid = getppid();
-        int filhodopai = res;
-
-        if(WIFEXITED(status)){
-            printf("[PAI] ## My PID: %d, Parent PID: %d, Son PID: %d , SON WEXITSTATUS: %d ##\n", myid, parentid, filhodopai, WEXITSTATUS(status));
-        } else {
-            printf("[PAI] ## Son's Process didn't finish successfully ##"); //testar isto recorrendo ao ps e kill -9 [pid]
-        }
+        if(WIFEXITED(status))
+            printf("[PAI]   ## My PID: %d, Parent PID: %d, Son PID: %d , SON WEXITSTATUS: %d ##\n", getpid(), getppid(), pid, WEXITSTATUS(status));
+        else
+            printf("[PAI]   ## Son's Process didn't finish successfully ##"); //testar isto recorrendo ao ps e kill -9 [pid]
     }
     return 0;
 }
 
-int ex3(){
 
+//3. Implemente um programa que crie dez processos filhos que deverao executar sequencialmente. Para este
+//efeito, os filhos podem imprimir o seu PID e o do seu pai, e finalmente, terminarem a sua execução com
+//um valor de saída igual ao seu numero de ordem (e.g.: primeiro filho criado termina com o valor 1). O
+//pai devera imprimir o código de saída de cada um dos seus filhos.
+int ex3(){
     for(int i=1; i<=10; i++){
         int status;
 
@@ -58,7 +58,6 @@ int ex3(){
             printf("[PROCESSO FILHO %d] ## Parent PID: %d ##\n", getpid(), getppid());
             
             sleep(1);
-
             _exit(i);
             //_exit() termina o processo atual com código passado por argumento.
         } else {
@@ -97,9 +96,10 @@ int ex3(){
     return 0;
 }
 
+//4. Implemente um programa que crie dez processos filhos que deverao executar em concorrência. O pai
+//devera esperar pelo fim da execução de todos os seus filhos, imprimindo os respectivos códigos de saída.
 int ex4(){
     for(int i=1; i<=10; i++){
-        
         int res = fork();
         if(res == 0){
             printf("[PROCESSO FILHO %d] ## Parent PID: %d ##\n", getpid(), getppid());
@@ -116,6 +116,11 @@ int ex4(){
     return 0;
 }
 
+
+//5. Pretende-se determinar a existencia de um determinado número inteiro nas linhas de numa matriz de
+//números inteiros, em que o número de colunas é muito maior do que o número de linhas. Implemente,
+//utilizando processos um programa que determine a existência de um determinado número, recebido como
+//argumento, numa matriz gerada aleatoriamente.
 int ex5(int num){
     int rows = 10;
     int columns = 1000;
@@ -123,71 +128,84 @@ int ex5(int num){
 
     int res;
     int randmax = 3000;
+    int status;
 
+    //By passing time(NULL) as an argument to srand(), the seed for the random number generator is set to the current time in seconds.
     srand(time(NULL));
 
+    //Allocate and populate matrix with random numbers
+    printf("Generating numbers from 0 to %d...\n", randmax);
     for(int i = 0; i < rows; i++){
         for (int j = 0; j < columns; j++){
             matrix[i][j] = rand() % randmax;
         }
     }
-    
     printf("Matriz inicializada...\n");
 
     for(int lin = 0; lin < rows; lin++){
-        res = fork();
 
+        res = fork();
         if(res == 0){
             printf("[PROCESSO FILHO %d] Searching in row %d\n", getpid(), lin+1);
+            //Start searching for the given number in row #lin+1
             for(int col = 0; col < columns; col++){
-                if(matrix[lin][col] == num){
+                if(matrix[lin][col] == num)
                     _exit(lin+1);
-                }
             }
             _exit(-1);
         }
     }
 
+    //esta a correr os processos de forma concorrente
     for(int lin = 0; lin < rows; lin++){
-        int status;
-        wait(&status);
-        //waitpid(pids[i], &status, 0);
-        if(WEXITSTATUS(status) < 255){ //range 0 a 255, -1 excluído
-            printf("[PROCESSO PAI   %d] Found in line %d!\n", getpid(), WEXITSTATUS(status));
-        }
+
+        //pid_t terminated_pid = waitPID(pid, &status, 0);
+        pid_t terminated_pid = wait(&status);
+        if(WIFEXITED(status)) {
+            if(WEXITSTATUS(status) < 255) //range 0 a 255, -1 excluído
+                printf("[PROCESSO PAI   %d] Process %d exited. Found in row %d!\n", getpid(), terminated_pid, WEXITSTATUS(status));
+            else
+                printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
+        } else 
+            printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
     }
     return 0;
 }
 
-
-int ex6(int num){ //same as above but with additions
+//6. A partir do cenário descrito no exercício anterior, pretende-se que imprima por ordem crescente os
+//numeros de linha onde existem ocorrências do número.
+//same as above but with additions
+int ex6(int num){ 
     int rows = 10;
     int columns = 1000;
     int matrix[rows][columns];
 
     int res;
     int randmax = 3000;
+    int status;
     int pids[rows];  //new
 
-    srand(time(NULL)); //o initialize the random seed based on the current time
+    //By passing time(NULL) as an argument to srand(), the seed for the random number generator is set to the current time in seconds.
+    srand(time(NULL));
 
+    printf("Generating numbers from 0 to %d...\n", randmax);
     for(int i = 0; i < rows; i++){
         for (int j = 0; j < columns; j++){
             matrix[i][j] = rand() % randmax;
         }
     }
-    
     printf("Matriz inicializada...\n");
 
-    for(int lin = 0; lin < rows; lin++){
-        res = fork();
 
+    for(int lin = 0; lin < rows; lin++){
+        
+        res = fork();
         if(res == 0){
             printf("[PROCESSO FILHO %d] Searching in row %d\n", getpid(), lin+1);
+            //Start searching for the given number in row #lin+1
             for(int col = 0; col < columns; col++){
-                if(matrix[lin][col] == num){
+                if(matrix[lin][col] == num)
                     _exit(lin+1);
-                }
             }
             _exit(-1);
         } else {              //new
@@ -196,12 +214,17 @@ int ex6(int num){ //same as above but with additions
     }
 
     for(int lin = 0; lin < rows; lin++){
-        int status;
-        waitpid(pids[lin], &status, 0);  //new
-        if(WEXITSTATUS(status) < 255){ //range 0 a 255, -1 excluído
-            printf("[PROCESSO PAI   %d] Found in line %d!\n", getpid(), WEXITSTATUS(status));
-        }
+        pid_t terminated_pid = waitpid(pids[lin], &status, 0);  //new
+
+        if(WIFEXITED(status)) {
+            if(WEXITSTATUS(status) < 255) //range 0 a 255, -1 excluído
+                printf("[PROCESSO PAI   %d] Process %d exited. Found in row %d!\n", getpid(), terminated_pid, WEXITSTATUS(status));
+            else
+                printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
+        } else 
+            printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
     }
+
     return 0;
 }
 
@@ -243,5 +266,5 @@ Usage: ./program -5 [number]\n\
     return 0;
 }
 
-//gcc -Wall -g gui2.c -o gui2
+//gcc -Wall -c gui2.c -o gui2
 //>ps -> Z+ -> processo zombie
