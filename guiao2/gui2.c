@@ -169,7 +169,7 @@ int ex6(int num){ //same as above but with additions
     int randmax = 3000;
     int pids[rows];  //new
 
-    srand(time(NULL));
+    srand(time(NULL)); //o initialize the random seed based on the current time
 
     for(int i = 0; i < rows; i++){
         for (int j = 0; j < columns; j++){
