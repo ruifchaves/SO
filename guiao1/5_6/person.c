@@ -6,7 +6,9 @@
 #include <stdlib.h> //atoi
 #include <ctype.h>  //isDigit
 #include <stdbool.h>//booleans
+#include <time.h>
 #include "person.h"
+
 
 
 int addPerson(char* n, int a){
@@ -155,6 +157,8 @@ Usage: ./program [-x] [position] [age]\n\
         return 1;
     }
 
+    clock_t start, end;  // Declare variables to store start and end times
+
     char* flag = argv[1];
     char* name = argv[2];
     int   age  = atoi(argv[3]);
@@ -164,11 +168,24 @@ Usage: ./program [-x] [position] [age]\n\
         int res = addPerson(name, age);
         snprintf(id, 20, "registo %d\n", res);
         write(STDOUT_FILENO, id, sizeof(id));
-    } else if(strcmp(flag,"-u") == 0)
+    } else if(strcmp(flag,"-u") == 0){ //Call updateAge function and measure time
+        start = clock();
+
         updateAge(name, age);
-    else if(strcmp(flag,"-o") == 0 && isNumber(argv[2]))
+
+        end = clock();
+        double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC; //stores CPU time used
+        printf("updateAge took %f seconds to execute.\n", cpu_time_used);
+
+    } else if(strcmp(flag,"-o") == 0 && isNumber(argv[2])){ //Call updateAge_v2 function and measure time
+        start = clock();
+
         updateAge_v2(atoi(argv[2]), age);
-    else {
+
+        end = clock();
+        double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC; //stores CPU time used
+        printf("updateAge_v2 took %f seconds to execute.\n", cpu_time_used);
+    } else {
         printf("Invalid flag.");
         return 1;
     }
