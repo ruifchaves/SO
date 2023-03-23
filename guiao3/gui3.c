@@ -3,17 +3,17 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdlib.h> //system()
 
+//Exercícios adicionais
 //1
 //readln do stdin
 //passar ao mysystem
 //mysystem(string command) -> sem wait e a correr no filho, quando terminar to terminal
 
 
-
 //2 execucao sequencial dentro de uma paralela
-
-//C
+// C
 // | -> a (se return nao for pretendido:) -> a -> a
 // | -> b
 // | -> c
@@ -21,69 +21,63 @@
 
 
 
-
-
-
-
-
-
-
-
-int ex4(char* exec) {
-    char* args[32]; // maximum number of arguments
+//4. Implemente uma versão simplificada da função system(). Ao contrário da função original, não tente
+//suportar qualquer tipo de redireccionamento, ou composição/encadeamento de programas executáveis.
+//O único argumento deverá ser uma string que especifica um programa executável e uma eventual lista de
+//argumentos. Procure que o comportamento e valor de retorno da sua função sejam compatíveis com a
+//original.
+int ex4(char* command) {
+    char* exec_args[32]; // maximum number of arguments
     int i = 0;
+    int retf;
+    int status;
+    int wait_ret;
+    int res;
     
-    char* token = strtok(exec, " ");
-    while (token != NULL) {
-        args[i] = token;
+    char* string = strtok(command, " ");
+    while (string != NULL) {
+        exec_args[i] = string;
+        string = strtok(NULL, " ");
         i++;
-        token = strtok(NULL, " ");
     }
-    args[i] = NULL; // set the last element to NULL
+    exec_args[i] = NULL; //set the last element to NULL
     
-    execvp(args[0], args);
-    
-    _exit(1);
-}
-
-int main() {
-    char* exec = "ls -l -a";
-    ex4(exec);
-    return 0;
-}
-
-int ex4(char* arg){
-
-    char* prog = strtok(arg, " ");
-
-    char* tmp = prog;
-    for(i = 0; )
-
-
-    char* flags = strtok(NULL, " ");
-    int res = execvp(prog, flags);
-    if(res == -1){
-
+    //Sem fork o programa principal era trocado
+    retf = fork();
+    if(retf == 0){
+        int exec_ret = execvp(exec_args[0], exec_args);
+        _exit(exec_ret);
+    } else {
+        if(retf != -1){
+            wait_ret = waitpid(retf, &status, 0);
+            if(WIFEXITED(status))
+                res = WEXITSTATUS(status);
+            else
+                res = -1;
+        } else res = -1;
     }
-    _exit(1);
+    
+    return res;
 }
 
-
-int ex4_system(){
+//system example
+int ex4_system(){ 
 
     int res = system("ls -la");
-
     return 0;
 }
 
-
+//3. Implemente um programa que execute concorrentemente uma lista de executáveis especificados como
+//argumentos da linha de comando. Considere os executáveis sem quaisquer argumentos próprios. O
+//programa deverá esperar pelo fim da execução de todos processos por si criados.
 int ex3(int args, char* argv[]){
 
     for(int i = 0; i < args; i++){
-        int res = fork();
-        if(res == 0){
+        int resf = fork();
+        if(resf == 0){
             sleep(1);
-            int res = execlp(argv[i+2], argv[i+1], NULL);
+            int exec_ret = execlp(argv[i+2], argv[i+1], NULL);
+            printf("Correu mal... %d\n", exec_ret);
             _exit(1);
         }
     }
@@ -99,7 +93,8 @@ int ex3(int args, char* argv[]){
     return 0;
 }
 
-
+//2. Implemente um programa semelhante ao anterior que execute o mesmo comando mas agora no contexto
+//de um processo filho.
 int ex2(){
 
     int res;
@@ -118,7 +113,7 @@ int ex2(){
         printf("Terminei");
     }
 
-    printf('Terminou.. %d\n', res);
+    printf('Terminou... %d\n', res);
 
     return 0;
 }
@@ -130,7 +125,7 @@ int ex1(){
     //caso o path seja correto, o codigo é substituido e o printf não é executado.
     //caso o path seja incorreto "/bin/sudhvfsv", res tem valor de retorno e o printf é executado.
 
-    printf('Terminou.. %d\n', res);
+    printf('Terminou... %d\n', res);
 
     return 0;
 }
@@ -144,9 +139,24 @@ int main(int argc, char* argv[]){ //char** argv
     if(strcmp(flag,"-1") == 0) ex1();
     else if(strcmp(flag,"-2") == 0) ex2();
     else if(strcmp(flag,"-3") == 0) ex3(argc-2, argv);
-    else if(strcmp(flag,"-4") == 0) ex4(argv[2]);
-    //else if(strcmp(flag,"-5") == 0) ex5(atoi(argv[2]));
-    //else if(strcmp(flag,"-6") == 0) ex6(atoi(argv[2]));
+    else if(strcmp(flag,"-41") == 0) ex4_system(); //system function with 
+    else if(strcmp(flag,"-42") == 0) { //mysystem with predefined commands 
+        char command1[] = "ls -l -a -h";
+        char* command1 = "ls -l -a -h";
+        char command2[] = "sleep 10";
+        char command3[] = "ps";
+        int ret;
+
+        printf("A executar mysystem para \"%s\"...\n", command1);
+        int ret = ex4(command1);
+        printf("ret: %d\n", ret);
+
+        printf("A executar mysystem para \"%s\"...\n", command2);
+        ex4(command2);
+        printf("A executar mysystem para \"%s\"...\n", command3);
+        ex4(command3);
+    }
+    else if(strcmp(flag,"-43") == 0) ex4(argv[2]);      //agrv[2] as string: ./gui3 -43 "ls -l -a"
     else {
         printf("Invalid flag.\n");
         return 1;
