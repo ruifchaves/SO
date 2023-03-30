@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define RANDOM_MAX 1000
+#define RANDOM_MAX (int)10e6
 
 //1. Escreva um programa que crie um pipe anónimo e de seguida crie um processo filho. Experimente o pai
 //enviar um inteiro atraves do descritor de escrita do pipe, e o filho receber um inteiro a partir do respetivo
@@ -250,6 +250,31 @@ int** genMatrix(int rows, int cols){
 
 void ex6(int** matrix, int rows, int cols, int target, int* vetor){
     srand(time(NULL));
+
+    int p[2];
+    pipe[p];
+
+    for //rows
+        //criar fork responsavel pela linha i
+
+        Ninfo res;
+
+    write(p[1], &res, sizeof(Ninfo));
+
+        //close and exit
+        close()
+        _exit(0)
+
+
+    close(p[1]);
+
+    Ninfo res;
+    while (read(p[0], &res, sizeof(Ninfo) > 0))
+        result[res, line_nr]=res.ocur_nr;
+
+
+    //wait for all processes
+
 }
 
 int main(int argc, char* argv[]){
@@ -298,9 +323,13 @@ USAGE\n\
             return 1;
         } else if (argc == 3) printf("Target number: %d\n")
         int target = ;
-        int*
+        int* vector = malloc(sizeof(int) * rows);
         
-        ex6(matrix, rows, columns, target, );
+        ex6(matrix, rows, columns, target, vector);
+
+
+
+
     }
     else {
         printf("Invalid flag.\n");
