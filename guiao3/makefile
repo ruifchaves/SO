@@ -1,5 +1,9 @@
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -Wno-unused-variable
+
+# GCC flags:
+# -Wall: Enable all warning messages
+# -Werror: Treat all warnings as errors
 
 gui3: gui3.o
 	$(CC) $(CFLAGS) -o gui3 gui3.o

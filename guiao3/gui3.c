@@ -9,8 +9,8 @@
 //sucedida, mais nenhuma outra instrução é executada do programa original.
 int ex1(){
     int exec_ret1 = execl("/bin/ls", "ls", "-l", NULL);
-    //  caso o path seja correto, o codigo é substituido e o printf não é executado.
-    //  caso o path seja incorreto "/bin/sudhvfsv", res tem valor de retorno e o printf é executado.
+    //caso o path seja correto, o codigo é substituido e o printf não é executado.
+    //caso o path seja incorreto "/bin/sudhvfsv", exec_ret1 tem valor de retorno e o printf final é executado.
     int exec_ret2 = execlp("ls", "ls", "-l", NULL);
 
     char* exec_args[] = {"/bin/ls", "-l", NULL};
@@ -35,9 +35,18 @@ int ex2(){
 
         _exit(1); //importante pq caso exec corra mal, processo é terminado either way (com status 1 em vez de 0)
     } else {
-        pid_t terminated_pid = wait(NULL); //forcar execucao sequencial, ao inves de paralela/concorrente
-        
-        printf("[PAI   %d] Child process exited normally\n", terminated_pid);
+        //pid_t terminated_pid = wait(NULL); 
+        //printf("[PAI   %d] Child process exited normally\n", terminated_pid);
+
+        int status;
+        int terminated_pid = wait(&status); //forcar execucao sequencial, ao inves de paralela/concorrente
+        //-1 for error or pid
+
+        if(WIFEXITED(status))
+            //WEXITSTATUS(status) = 1 (_exit(1)), se exec went wrong, otherwise 0
+            printf("[PAI   %d] Child process exited normally with status: %d\n", terminated_pid, WEXITSTATUS(status));
+        else //nunca vai chegar aqui por causa do _exit (independentemente do valor do _exit)
+            printf("[PAI   %d] Child process exited abnormally...\n", terminated_pid);
     }
 
     return 0;
@@ -63,13 +72,11 @@ int ex3(int args, char* argv[]){
     for(int i = 0; i < args; i++){
         int status;
         pid_t terminated_pid = wait(&status);
-        //-1 for error or pid
 
         if(WIFEXITED(status))
-            //WEXITSTATUS(status) = 1 (_exit(1)), se exec went wrong, otherwise 0
             printf("[PAI   %d] Child process exited normally with status: %d\n", terminated_pid, WEXITSTATUS(status));
-        else //nunca vai chegar aqui por causa do _exit (independentemente do valor do _exit)
-            printf("[PAI   %d] Child process exited abnormally...\n", i);
+        else
+            printf("[PAI   %d] Child process exited abnormally...\n", terminated_pid);
     }
 
     return 0;
@@ -81,8 +88,11 @@ int ex4_system(){
     int system_res = system("ls -la");
     //SYSTEM()
     //  executes the command by passing it to the system shell
-    //  internally calls fork() and exec() functions to create a new process and execute the command in that process.
-    //  0 -> command completed successfully; non-zero -> there was an error.
+    //  internally calls fork(2) and execl() to create a new process and execute the command in that process shell.
+    //      Command is NULL: a nonzero value if a shell is available, or 0 if no shell is available.
+    //      Child process could not be created or its status could not be retrieved: -1 and errno is set to indicate the error.
+    //      Shell could not be executed in child: child shell terminated by calling _exit(2) with the status 127.
+    //      All system calls succeed: is the termination status of the child shell used to execute command.
     //EXECVP()
     //  replaces the current process image with a new process image.
     //  if successful, the current program will no longer be running.
@@ -140,26 +150,75 @@ int ex4(char* command) {
 //passar ao mysystem
 //mysystem(string command) -> sem wait e a correr no filho, quando terminar to terminal
 
+//1. Implemente um interpretador de comandos muito simples ainda que inspirado na bash. O interpretador
+//deverá executar comandos especificados numa linha de texto introduzida pelo utilizador. Os comandos
+//são compostos pelo nome do programa a executar e uma eventual lista de argumentos. Os comandos
+//podem ainda executar em primeiro plano, ou em pano de fundo, caso o utilizador termine a linha com &.
+//O interpretador deverá terminar a sua execução quando o utilizador invocar o comando interno exit ou
+//quando assinalar o fim de ficheiro (Control-D no início de uma linha em sistemas baseados em Unix).
+int ex5(){
+    printf("Not yet implemented...\n");
+    return 1;
+}
+
 //2 execucao sequencial dentro de uma paralela
 // C
 // | -> a (se return nao for pretendido:) -> a -> a
 // | -> b
 // | -> c
 
+//2. Implemente um programa controlador que execute concorrentemente um conjunto de programas
+//especificados como argumento da sua linha de comando. O controlador deverá re-executar cada
+//programa enquanto não terminar com código de saída nulo. No final da sua execução, o controlador
+//deverá imprimir o número de vezes que cada programa foi executado. Considere que os programas são
+//especificados sem qualquer argumento.
+int ex6(){
+    printf("Not yet implemented...\n");
+    return 1;
+}
 
 int main(int argc, char* argv[]){ //char** argv
-    printf("USAGE...\n");
+    printf(
+"\n---------------------------------\n\
+Welcome to the program!\n\
+Please select an option below:\n\n\
+Flag  Function\n\
+----  --------\n\
+-1    Correctly executes \'ls -l\' with execl, execlp. execv, execvp.\n\
+-2    Same as above, but with execl and in the context of a child sequential process.\n\
+-3    Creates child parallel processes and executes a list of executables specified as command line arguments.\n\
+      The program waits for the end of execution of all processes created by it.\n\
+-41   Example of the execution of the system() call of \'ls -l\'.\n\
+-42   Simulate system() with own function by executing a set of pre-defined commands.\n\
+-43   Simulate system() with own function by executing commands and arguments specified as a command line string argument.\n\
+-5    (not yet) This code implements a very simple command interpreter inspired by bash.\n\
+      The interpreter executes commands specified in a line of text entered by the user.\n\
+      The commands consist of the name of the program to be executed and an optional list of arguments.\n\
+      The commands can also be executed in the foreground or background if the user terminates the line with &.\n\
+      The interpreter should terminate its execution when the user invokes the internal exit command or \n\
+      when it signals the end of file (Control-D at the beginning of a line in Unix-based systems).\n\
+-6    (not yet) ...\n\
+\n\
+USAGE\n\
+  ./gui3 -1\n\
+  ./gui3 -2\n\
+  ./gui3 -3 [command1] [command2] [commandN] (./gui3 -3 ls ps)\n\
+  ./gui3 -41\n\
+  ./gui3 -42\n\
+  ./gui3 -43 \"[command]\" (./gui3 -43 \"ls -l -a\")\n\
+---------------------------------\n\n");
+
 
     char* flag = argv[1];
 
     if(strcmp(flag,"-1") == 0) ex1();
     else if(strcmp(flag,"-2") == 0) ex2();
-    else if(strcmp(flag,"-3") == 0) ex3(argc-2, argv); //./gui3 -3 ls ps
+    else if(strcmp(flag,"-3") == 0) ex3(argc-2, argv);
     else if(strcmp(flag,"-41") == 0) ex4_system(); //system function with 
-    else if(strcmp(flag,"-42") == 0) { //mysystem with predefined commands 
+    else if(strcmp(flag,"-42") == 0) {
         char command1[] = "ls -l -a -h"; //ret: 0
         char command2[] = "sleep 3";     //ret: 0
-        char command3[] = "lss";        //ret: 255
+        char command3[] = "lss";         //ret: 255
         //_exit(-1) is being translated to 255 in WEXITSTATUS() because of the way that negative
         // exit statuses are represented in the status value returned by wait(), 
         // and the way that WEXITSTATUS() extracts the exit status from this value.
@@ -190,6 +249,8 @@ int main(int argc, char* argv[]){ //char** argv
         int ret = ex4(argv[2]); //agrv[2] as string: ./gui3 -43 "ls -l -a" or "pss"
         printf("ret: %d\n", ret);
     }
+    else if(strcmp(flag,"-5") == 0) ex5();
+    else if(strcmp(flag,"-6") == 0) ex6();
     else {
         printf("Invalid flag.\n");
         return 1;

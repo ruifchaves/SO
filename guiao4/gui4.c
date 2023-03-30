@@ -3,22 +3,10 @@
 #include <sys/wait.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <time.h>
 
-void ex1(){
-
-
-
-
-}
-
-//ex6
-//exercicio da matriz
-//criar varios processos filhos, cada um procurar numa linha e escrever no pipe em que linha e nº de vezes que encontrou na linha
-//ler do pipe pelo pai e apresentar
-//podemos enviar uma struct pelo pipe, com a info de cima. (make sure que a struct seja menor que o pipe buff!)
-
-
-
+#define RANDOM_MAX 1000
 
 //1. Escreva um programa que crie um pipe anónimo e de seguida crie um processo filho. Experimente o pai
 //enviar um inteiro atraves do descritor de escrita do pipe, e o filho receber um inteiro a partir do respetivo
@@ -115,14 +103,13 @@ void ex3_filhoToPai(){
     }
 }
 
-//2. ao escrever um escreveu continuamente e quando chega a um valor, enche o buffer. tamanho do buffer corresponde a sizeof(int) * numero maximo escrito
-//4. 1. Experimente de seguida provocar um atraso antes do pai ler o inteiro. Repita com uma sequencia de
-//inteiros. Note agora que escrita do filho bloqueia enquanto o pai nao realizar a operação de leitura no pipe.
+//2. 
+//4. Experimente de seguida provocar um atraso antes do pai ler o inteiro.
 void ex4_1(){
     int p[2];
     pipe(p);
 
-        int resf = fork();
+    int resf = fork();
     if (resf == 0){
         close(p[0]); //impedir de ler
 
@@ -148,11 +135,13 @@ void ex4_1(){
     }
 }
 
-//4. 2. Repita com uma sequencia de inteiros. Note agora que escrita do filho bloqueia enquanto o pai nao realizar a operação de leitura no pipe.
+//4. Repita com uma sequencia de inteiros. Note agora que escrita do filho bloqueia enquanto o pai nao realizar a operação de leitura no pipe.
 void ex4_2(){
     int p[2];
     pipe(p);
 
+    //filho escreve continuamente até um valor, enchendo o buffer.
+    //tamanho do buffer corresponde a sizeof(int) * numero maximo escrito
     for(int i = 0; i < 1000; i++){ //for para varios write mas pai só le um pouquinho (uma vez). -> o pai le apenas o zero
         int resf = fork();
         if(resf == 0){
@@ -229,16 +218,67 @@ void ex5(){
     
 }
 
+
+//ex6
+//exercicio da matriz
+//criar varios processos filhos, cada um procurar numa linha e escrever no pipe em que linha e nº de vezes que encontrou na linha
+//ler do pipe pelo pai e apresentar
+//podemos enviar uma struct pelo pipe, com a info de cima. (make sure que a struct seja menor que o pipe buff!)
+
 //6. Pretende-se determinar todas as ocorrencias de um determinado número inteiro nas linhas duma matriz de
 //números inteiros, em que o número de colunas é muito maior do que o número de linhas. Implemente, utili-
 //zando processos e pipes, uma função que devolva num vetor todas as ocorrências encontradas. A matriz
 //inicial, o valor a procurar e o vetor onde guardar os resultados devem ser fornecidos como parâmetros.
-void ex6(){
 
+typedef struct Info {
+    int row;
+    int nOcurr;
+} Info;
+
+//Auxiliary function: Generates a 'rows' x 'cols' matrix of random integers  
+int** genMatrix(int rows, int cols){
+    int** matrix = malloc(sizeof(int*) * rows);
+
+    for(int i = 0; i < rows; i++){
+        matrix[i] = malloc(sizeof(int) * cols);
+        for(int j = 0; j < cols; j++)
+            matrix[i][j] = rand() % RANDOM_MAX;
+    }
+
+    return matrix;
+}
+
+void ex6(int** matrix, int rows, int cols, int target, int* vetor){
+    srand(time(NULL));
 }
 
 int main(int argc, char* argv[]){
-    printf("USAGE...\n");
+    printf(
+"\n---------------------------------\n\
+Welcome to the program!\n\
+Please select an option below:\n\n\
+Flag  Function\n\
+----  --------\n\
+-1    Create an anonymous pipe and a child process.\n\
+      The father sends int through writing descriptor of the pipe,\n\
+      and the child receives int from the respective reading descriptor.\n\
+-2    Delay before the father sends int (e.g., sleep(5)).\n\
+      Now note that the child's read blocks until the father performs the write operation on the pipe.\n\
+-3    Invert the roles so that the information is transmitted from the child to the father.\n\
+-41   Delay before the father reads the integer.\n\
+-42   Repeat with a sequence of integers. Now note that the child's write blocks until the father\n\
+      performs the read operation on the pipe.\n\
+-5    Modify the previous program so that the reading of the pipe is performed while the end-of-file\n\
+      situation is not detected in the respective descriptor. Note that this situation occurs only when\n\
+      no process - in this case, father and child - has opened the writing descriptor of the pipe.\n\
+-6    Using processes and pipes, searches for a given integer in a matrix of integers with a large number \n\
+      of columns and few rows. The initial matrix, the value to search for, and the vector to store the \n\
+      results should be provided as parameters.\n\
+\n\
+USAGE\n\
+  ./gui4 [flag]\n\
+  ./gui4 -6 [targer_number]\n\
+---------------------------------\n\n");
 
     char* flag = argv[1];
     
@@ -249,7 +289,18 @@ int main(int argc, char* argv[]){
     else if(strcmp(flag,"-42") == 0) ex4_2();
     else if(strcmp(flag,"-5") == 0) ex5();
     else if(strcmp(flag,"-6") == 0) {
-        ex6();
+        int rows = 20;
+        int columns = 1e6;
+        int** matrix = genMatrix(rows, columns);
+
+        if (argc < 3) {
+            printf("Missing target number...\n")
+            return 1;
+        } else if (argc == 3) printf("Target number: %d\n")
+        int target = ;
+        int*
+        
+        ex6(matrix, rows, columns, target, );
     }
     else {
         printf("Invalid flag.\n");
