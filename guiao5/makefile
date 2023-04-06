@@ -9,3 +9,6 @@ gui5.o: gui5.c
 
 clean:
 	rm -f gui5 *.o
+	rm -f myfifo
+	rm -f piping
+	rm -f log.txt
