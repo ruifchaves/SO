@@ -189,8 +189,36 @@ int ex22(char* input){
 }
 
 int main(int argc, char* argv[]){
-    printf("USAGE...\n\n");
-
+    if(argc == 1){
+    printf(
+"\n--------------------------------------------------------------------------------------------------------------------------\n\
+Welcome to the program!\n\
+Please select an option below:\n\n\
+Flag  Function\n\
+----  --------------------------------------------------------------------------------------------------------------------\n\
+-11   Creates a named pipe by calling mkfifo(). Also spits out the size of the pipe buffer.\n\
+-12   Opens the named pipe for writing by calling open() with the O_WRONLY flag.\n\
+      The function then reads input from the standard input and writes it to the named pipe using write().\n\
+      The function continues reading from stdin and writing to the pipe until it encounters the end-of-file marker\n\
+      (i.e. Ctrl+D or sends an EOF character). The function then closes the pipe using the close().\n\
+-13   Opens the named pipe for reading by calling open() with the O_RDONLY flag.\n\
+      The function then reads data from the named pipe using read() and writes it to the standard output using write().\n\
+      The function continues reading and writing until it reaches EOF or an error occurs. Then the pipe is closed.\n\
+-14   Removes the named pipe by calling unlink().\n\
+-21   Implements a server program that listens for incoming messages from clients over a named pipe.\n\
+      The function creates a named pipe by calling mkfifo(), opens a log file by calling open(), \n\
+      and enters an infinite loop that waits for messages to arrive over the named pipe.\n\
+      When a message arrives, the function writes it to the log file using write().\n\
+-22   This function serves as a client process that sends a message to a server process through a named pipe.\n\
+      The function takes an input string as an argument and opens the named pipe using open().\n\
+      It then writes the input string to the pipe using write() before closing the pipe.\n\
+\n\
+USAGE\n\
+  ./gui5 [flag]\n\
+  ./gui5 -22 \"[message]\"\n\
+--------------------------------------------------------------------------------------------------------------------------\n\n");
+    return -1;
+    }
     char* flag = argv[1];
     
     if(strcmp(flag,"-11") == 0) ex1();
