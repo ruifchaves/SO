@@ -8,16 +8,19 @@
 //1. Implemente um programa que execute o comando ls -l. Note que no caso da execução ser bem
 //sucedida, mais nenhuma outra instrução é executada do programa original.
 int ex1(){
+    printf("Exec Starting...\n");
+
     int exec_ret1 = execl("/bin/ls", "ls", "-l", NULL);
     //caso o path seja correto, o codigo é substituido e o printf não é executado.
     //caso o path seja incorreto "/bin/sudhvfsv", exec_ret1 tem valor de retorno e o printf final é executado.
-    int exec_ret2 = execlp("ls", "ls", "-l", NULL);
-
-    char* exec_args[] = {"/bin/ls", "-l", NULL};
-    int exec_ret3 = execv("/bin/ls", exec_args); 
-    int exec_ret4 = execvp("ls", exec_args); 
+    
+    //int exec_ret2 = execlp("ls", "ls", "-l", NULL);
+    //char* exec_args[] = {"/bin/ls", "-l", NULL};
+    //int exec_ret3 = execv("/bin/ls", exec_args); 
+    //int exec_ret4 = execvp("ls", exec_args); 
 
     printf("Exec reached return: %d\n", exec_ret1);
+    perror("Reached Return");
     return 0;
 }
 
@@ -25,13 +28,15 @@ int ex1(){
 //de um processo filho.
 int ex2(){
     int exec_ret;
+    //char* exec_args[] = {"/bin/ls", "ls", NULL};
 
     int resf = fork();
     if(resf == 0){
         sleep(2);
 
         exec_ret = execl("/bin/ls", "ls", "-l", NULL); 
-        printf("[FILHO %d] Exec went wrong: %d\n", getpid(), exec_ret);
+        //exec_ret = execvp("ls", exec_args);
+        printf("[FILHO %d] After Exec | Exec went wrong: %d\n", getpid(), exec_ret);
 
         _exit(1); //importante pq caso exec corra mal, processo é terminado either way (com status 1 em vez de 0)
     } else {
@@ -61,10 +66,12 @@ int ex3(int args, char* argv[]){
         int resf = fork();
         if(resf == 0){
             sleep(1);
-
+            
+            printf("[FILHO %d] Started | going to execute command %s]\n", getpid(), argv[i+2]);
             int exec_ret = execlp(argv[i+2], argv[i+2], NULL);
-            printf("[FILHO %d] Exec went wrong: %d\n", getpid(), exec_ret);
+            printf("[FILHO %d] After Exec | Exec went wrong: %d\n", getpid(), exec_ret);
 
+            perror("Reached Return");
             _exit(1);
         }
     }
@@ -114,13 +121,14 @@ int ex4(char* command) {
     int status;
     int res;
     
-    char* string = strtok(command, " ");
+    char* string = strtok(command, " ");   //char* strtok (char* str, const char* delim)
     while (string != NULL) {
         exec_args[i] = string;
-        printf("%s\n", exec_args[i]);
+        printf("%s ", exec_args[i]);
         string = strtok(NULL, " ");
         i++;
     }
+    printf("\n");
     exec_args[i] = NULL; //set the last element to NULL
     
     //Sem fork o programa principal era trocado
@@ -142,6 +150,39 @@ int ex4(char* command) {
     }
     
     return res;
+}
+
+//4. (versao alternativa) Igual ao exercicio 3 mas corre varios processos do mesmo programa com flags diferentes (em vez de varios progs dif)
+//Assume-se, como no ex3, argv[] = ./gui3 -X "ls -l -a"
+//não testada
+int ex4_alt(int args, char* argv[]){
+
+    for(int i = 0; i < args; i++){
+        int resf = fork();
+        if(resf == 0){
+            sleep(1);
+            
+            printf("[FILHO %d] Started | going to execute command %s %s]\n", getpid(), argv[2], argv[2+i]);
+            int exec_ret = execlp(argv[2], argv[2], argv[i+2], NULL);
+            //Atenção ao usar o execvp: exec_ret = execvp (argv[i+2], &argv[i+2]); (para char** argv?)
+            printf("[FILHO %d] After Exec | Exec went wrong: %d\n", getpid(), exec_ret);
+
+            perror("Reached Return");
+            _exit(exec_ret);
+        }
+    }
+
+    for(int i = 0; i < args; i++){
+        int status;
+        pid_t terminated_pid = wait(&status);
+
+        if(WIFEXITED(status))
+            printf("[PAI   %d] Child process exited normally with status: %d\n", terminated_pid, WEXITSTATUS(status));
+        else
+            printf("[PAI   %d] Child process exited abnormally...\n", terminated_pid);
+    }
+
+    return 0;
 }
 
 // EXERCICIOS ADICIONAIS
@@ -214,7 +255,7 @@ USAGE\n\
     if(strcmp(flag,"-1") == 0) ex1();
     else if(strcmp(flag,"-2") == 0) ex2();
     else if(strcmp(flag,"-3") == 0) ex3(argc-2, argv);
-    else if(strcmp(flag,"-41") == 0) ex4_system(); //system function with 
+    else if(strcmp(flag,"-41") == 0) ex4_system();
     else if(strcmp(flag,"-42") == 0) {
         char command1[] = "ls -l -a -h"; //ret: 0
         char command2[] = "sleep 3";     //ret: 0
@@ -228,26 +269,26 @@ USAGE\n\
         //ls command is printing an error message and exiting with a status code of 2
         // when it encounters the -j option (doesnt reach the _exit)
 
-        printf("A executar mysystem para \"%s\"...\n", command1);
+        printf("[MAIN] A executar mysystem para \"%s\"...\n", command1);
         int ret = ex4(command1);
-        printf("ret: %d\n\n", ret);
+        printf("[MAIN] Return Value: %d\n----------------------------------------\n\n", ret);
 
-        printf("A executar mysystem para \"%s\"...\n", command2);
+        printf("[MAIN] A executar mysystem para \"%s\"...\n", command2);
         ret = ex4(command2);
-        printf("ret: %d\n\n", ret);
+        printf("[MAIN] Return Value: %d\n----------------------------------------\n\n", ret);
 
-        printf("A executar mysystem para \"%s\"...\n", command3);
+        printf("[MAIN] A executar mysystem para \"%s\"...\n", command3);
         ret = ex4(command3);
-        printf("ret: %d\n\n", ret);
+        printf("[MAIN] Return Value: %d\n----------------------------------------\n\n", ret);
 
-        printf("A executar mysystem para \"%s\"...\n", command4);
+        printf("[MAIN] A executar mysystem para \"%s\"...\n", command4);
         ret = ex4(command4);
-        printf("ret: %d\n\n", ret);
+        printf("[MAIN] Return Value: %d\n----------------------------------------\n\n", ret);
     }
     else if(strcmp(flag,"-43") == 0){
-        printf("A executar mysystem para \"%s\"...\n", argv[2]);
+        printf("[MAIN] A executar mysystem para \"%s\"...\n", argv[2]);
         int ret = ex4(argv[2]); //agrv[2] as string: ./gui3 -43 "ls -l -a" or "pss"
-        printf("ret: %d\n", ret);
+        printf("[MAIN] Return Value: %d\n", ret);
     }
     else if(strcmp(flag,"-5") == 0) ex5();
     else if(strcmp(flag,"-6") == 0) ex6();

@@ -1,41 +1,48 @@
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <stdio.h>  //printf
-#include <string.h> //stcmp
-#include <stdlib.h> //atoi
-#include <ctype.h>  //isDigit
-#include <stdbool.h>//booleans
-#include <time.h>
-#include "person.h"
+
+#include 'person.h'
 
 
+//5. Considere uma estrutura (struct) com dados de uma pessoa (nome, idade, ...) e um ficheiro binário que
+//contém registos organizados segundo esta estrutura. Não assuma que o ficheiro cabe todo em memória.
+//Escreva um programa que, consoante a opção, permita:
+// -i - Acrescentar pessoas a um ficheiro de dados binário
+// -u - Atualizar a idade de uma determinada pessoa no ficheiro de dados
+//
+// Exemplos:
+//  $ pessoas -i "José Mourinho" 59
+//  $ pessoas -u "José Mourinho" 60
+//
+//Meça o tempo que demora a inserir 1.000.000 de pessoas (nomes e idades gerados por si). Observa
+//alguma degradação de desempenho à medida que o ficheiro cresce?
 
 int addPerson(char* n, int a){
-
     //append permite escrever logo no fim
     int file_fd = open(FILENAME, O_CREAT | O_APPEND | O_WRONLY, 0660);
 
     if(file_fd < 0){
-        perror("Error opening file...");
+        perror("Error opening file");
         return -1;
     }
 
-    Person p; strcpy(p.name, n); p.age = a;
+    Person p;
+    strcpy(p.name, n);
+    p.age = a;
 
-    //int offset = lseek(file_fd, 0, SEEK_END);
+    //int offset = lseek(file_fd, 0, SEEK_END); //caso não usemos o APPEND no open
     int res = write(file_fd, &p, sizeof(Person));
     if(res < 0) {
-        perror("Error adding new Person...");
-        return 1;
+        perror("Error adding new Person");
+        return -1;
     }
     
+    //acrescentado para o ex6
     int cur_pos = lseek(file_fd, 0, SEEK_CUR);
     int reg_number = cur_pos/sizeof(Person);
 
     close(file_fd);
     return reg_number;
 }
+
 
 int updateAge(char* n, int a){
 
@@ -45,8 +52,8 @@ int updateAge(char* n, int a){
 
     int file_fd = open(FILENAME, O_RDWR, 0600);
     if(file_fd < 0){
-        perror("Error opening file; File does not exist...");
-        return 1;
+        perror("Error opening file; File does not exist");
+        return -1;
     }
     
     while((bytes_read = read(file_fd, &p, sizeof(Person)) > 0)){
@@ -54,18 +61,19 @@ int updateAge(char* n, int a){
         //debug
         printf("[READ] %s, %d\n", p.name, p.age);
 
-        if(strcmp(p.name, n) == 0){
+        if(strcmp(p.name, n) == 0){ //nome igual
             p.age = a;
 
+            //recuar o tamanho de uma person para atualizar a idade, pq o offset ao comparar no read fica para o fim
             res = lseek(file_fd, -sizeof(Person), SEEK_CUR);
             if(res < 0){
-                perror("Error lseek...");
+                perror("Error lseek");
                 return -1;
             }
 
             res = write(file_fd, &p, sizeof(Person));
             if(res < 0){
-                perror("Error writing new age...");
+                perror("Error writing new age");
                 return -1;
             }
 
@@ -76,32 +84,41 @@ int updateAge(char* n, int a){
             return 0;
         }
     }
+
     close(file_fd);
     return 1;
 }
 
 
-
+//6. Faça com que a opção -i diga qual a posição no ficheiro do registo inserido e acrescente a possibilidade
+//de atualizar a idade de registos por essa posição com a opção -o.
+// Exemplo:
+//  $ pessoas -i "José Mourinho" 59
+//      registo 973
+//  $ pessoas -o 973 60
+//
+//Meça o tempo que demora a alterar idades usando ambos os métodos. Observa alguma degradação de
+//desempenho à medida que o ficheiro cresce?
 int updateAge_v2(long pos, int a){ //pos -> index da pessoa
     
     Person p;
 
     int file_fd = open(FILENAME, O_RDWR, 0600);
     if(file_fd < 0){
-        perror("Error opening file; File does not exist...");
-        return 1;
+        perror("Error opening file; File does not exist");
+        return -1;
     }
 
     int seek_res = lseek(file_fd, (pos-1)*sizeof(Person), SEEK_SET);
     if(seek_res < 0){
-        perror("Error lseek...");
-        return 1;
+        perror("Error lseek");
+        return -1;
     }
 
     int bytes_read = read(file_fd, &p, sizeof(Person));
     if(bytes_read < 0){
-        perror("Error reading...");
-        return 1;
+        perror("Error reading");
+        return -1;
     }
 
     //debug
@@ -109,15 +126,15 @@ int updateAge_v2(long pos, int a){ //pos -> index da pessoa
 
     seek_res = lseek(file_fd, -sizeof(Person), SEEK_CUR);
     if(seek_res < 0){
-        perror("Error lseek...");
-        return 1;
+        perror("Error lseek");
+        return -1;
     }
     
     p.age = a;
     int res = write(file_fd, &p, sizeof(Person));
     if(res < 0){
-        perror("Error writing new age...");
-        return 1;
+        perror("Error writing new age");
+        return -1;
     }
     
     //debug
@@ -168,9 +185,9 @@ Usage: ./program [-x] [position] [age]\n\
         int res = addPerson(name, age);
         snprintf(id, 20, "registo %d\n", res);
         write(STDOUT_FILENO, id, sizeof(id));
+
     } else if(strcmp(flag,"-u") == 0){ //Call updateAge function and measure time
         start = clock();
-
         updateAge(name, age);
 
         end = clock();
@@ -179,12 +196,12 @@ Usage: ./program [-x] [position] [age]\n\
 
     } else if(strcmp(flag,"-o") == 0 && isNumber(argv[2])){ //Call updateAge_v2 function and measure time
         start = clock();
-
         updateAge_v2(atoi(argv[2]), age);
 
         end = clock();
         double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC; //stores CPU time used
         printf("updateAge_v2 took %f seconds to execute.\n", cpu_time_used);
+        
     } else {
         printf("Invalid flag.");
         return 1;

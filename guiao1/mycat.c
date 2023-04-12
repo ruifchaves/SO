@@ -10,12 +10,16 @@
 
 #define BUFFER_SIZE 1024
 
-int mycat(){
-    char buffer[buffer_size];
-    size_t bytes_read;
 
-    while((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0)
-        write(STDOUT_FILENO, buffer, bytes_read);
+//2. Implemente em C um programa mycat com funcionalidade similar ao comando cat, que lê do seu
+//stdin e escreve para o seu stdout.
+int mycat(){
+    char buffer[buffer_size]; //alocação estática, não necessita free
+    size_t bytes_read;
+    size_t bytes_written;
+
+    while((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0) //STDIN_FILENO = 0
+        bytes_written = write(STDOUT_FILENO, buffer, bytes_read);     //STDOUT_FILENO = 1
 
     return 0;
 }

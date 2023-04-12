@@ -10,6 +10,9 @@
 
 #define BUFFER_SIZE 50
 
+
+//1. Implemente em C um programa mycp com funcionalidade similar ao comando cp. Varie o tamanho do
+//buffer usado e meça o tempo necessário para copiar um ficheiro de grande dimensão
 int mycp(char* src, char* dst){
     
     int src_fd = open(src, O_RDONLY);

@@ -13,7 +13,7 @@
 //descritor de leitura.
 void ex1_paiToFilho(){
     int p[2];  //array que guarda os dois file descriptors do pipe, daí ser 2
-    pipe(p); //primeiro criar o pipe e apenas depois fazer fork
+    pipe(p);   //primeiro criar o pipe e apenas depois fazer fork
 
     int resf = fork();
     if(resf == 0){
@@ -24,7 +24,7 @@ void ex1_paiToFilho(){
         read(p[0], &recebido, sizeof(int)); //ler do fd 0 e guardar no recebido um int
         printf("[FILHO] Recebi: %d\n", recebido);
 
-        close(p[0]);
+        close(p[0]); //fechar extremidade de leitura (nao preciso mais dela)
         _exit(0); //exit sempre no filho
 
     } else {

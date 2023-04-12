@@ -1,7 +1,7 @@
 #!/bin/bash
-#$1 é um argumento passado ao script
-#./pscript 10 -> 10 é o nº de pessoas a inserir
-#SCRIPT THAT MEASURES THE TIME TO ADD X NUMBER OF NEW RANDOM PEOPLE TO FILE
+
+# SCRIPT MEASURES THE TIME TO ADD X NUMBER OF NEW RANDOM PEOPLE TO FILE
+# $1 -> argumento passado ao script (./pscript 10 -> vai inserir 10 pessoas)
 
 time (
     for ((i=1; i<=$1; i++))

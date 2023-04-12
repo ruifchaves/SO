@@ -5,10 +5,7 @@ gui5: gui5.o
 	$(CC) $(CFLAGS) -o gui5 gui5.o
 
 gui5.o: gui5.c
-	$(CC) $(CFLAGS) -c gui5.c -o gui5.o
+	$(CC) $(CFLAGS) -c gui5.c
 
 clean:
-	rm -f gui5 *.o
-	rm -f myfifo
-	rm -f piping
-	rm -f log.txt
+	rm -f gui5 *.o myfifo piping log.txt

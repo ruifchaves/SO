@@ -1,5 +1,9 @@
 #include "mynl.h"
 
+
+//3. Implemente a leitura de uma linha (i.e. sequência terminada por \n) numa função readln.
+//4. Implemente, utilizando a função readln, um programa com funcionalidade similar ao comando nl,
+//que numera as linhas recebidas no seu standard input.
 ssize_t readln(int fd, char *line, size_t size){
     ssize_t i = 0;
 

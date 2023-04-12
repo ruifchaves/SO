@@ -1,6 +1,6 @@
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/wait.h>  //chamadas wait e macros relaciondas
+#include <sys/wait.h>  //chamadas wait e macros relaciondas (WIFEXITED e WEXITSTATUS)
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -89,7 +89,7 @@ int ex3(){
             //WUNTRACED    also return if a child has stopped (but not traced via ptrace(2)). Status for traced children which have stopped is provided even if this option is not specified.
             //WCONTINUED   also return if a stopped child has been resumed by delivery of SIGCONT.
 
-            pid_t aux = waitpid(res, &status, WUNTRACED);
+            pid_t aux = waitpid(res, &status, 0);
             printf("[PROCESSO PAI   %d] ## Son's Status: %d, waitpid: %d, WEXITSTATUS: %d\n", getpid(), status, aux, WEXITSTATUS(status));
         }
     }
@@ -97,7 +97,7 @@ int ex3(){
 }
 
 //4. Implemente um programa que crie dez processos filhos que deverao executar em concorrência. O pai
-//devera esperar pelo fim da execução de todos os seus filhos, imprimindo os respectivos códigos de saída.
+//deverá esperar pelo fim da execução de todos os seus filhos, imprimindo os respectivos códigos de saída.
 int ex4(){
     for(int i=1; i<=10; i++){
         int res = fork();
@@ -125,6 +125,7 @@ int ex5(int num){
     int rows = 10;
     int columns = 1000;
     int matrix[rows][columns];
+    //int **matrix;
 
     int res;
     int randmax = 3000;
@@ -135,7 +136,9 @@ int ex5(int num){
 
     //Allocate and populate matrix with random numbers
     printf("Generating numbers from 0 to %d...\n", randmax);
+    //matrix = (int **) malloc(sizeof(int *) *rows); //**matrix
     for(int i = 0; i < rows; i++){
+        //matrix[i] = (int*) malloc(sizeof(int) *columns); //**matrix
         for (int j = 0; j < columns; j++){
             matrix[i][j] = rand() % randmax;
         }
@@ -143,7 +146,6 @@ int ex5(int num){
     printf("Matriz inicializada...\n");
 
     for(int lin = 0; lin < rows; lin++){
-
         res = fork();
         if(res == 0){
             printf("[PROCESSO FILHO %d] Searching in row %d\n", getpid(), lin+1);
@@ -169,6 +171,7 @@ int ex5(int num){
         } else 
             printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
     }
+    
     return 0;
 }
 
@@ -185,7 +188,6 @@ int ex6(int num){
     int status;
     int pids[rows];  //new
 
-    //By passing time(NULL) as an argument to srand(), the seed for the random number generator is set to the current time in seconds.
     srand(time(NULL));
 
     printf("Generating numbers from 0 to %d...\n", randmax);
@@ -202,7 +204,6 @@ int ex6(int num){
         res = fork();
         if(res == 0){
             printf("[PROCESSO FILHO %d] Searching in row %d\n", getpid(), lin+1);
-            //Start searching for the given number in row #lin+1
             for(int col = 0; col < columns; col++){
                 if(matrix[lin][col] == num)
                     _exit(lin+1);
@@ -217,7 +218,7 @@ int ex6(int num){
         pid_t terminated_pid = waitpid(pids[lin], &status, 0);  //new
 
         if(WIFEXITED(status)) {
-            if(WEXITSTATUS(status) < 255) //range 0 a 255, -1 excluído
+            if(WEXITSTATUS(status) < 255)
                 printf("[PROCESSO PAI   %d] Process %d exited. Found in row %d!\n", getpid(), terminated_pid, WEXITSTATUS(status));
             else
                 printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);

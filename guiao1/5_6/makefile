@@ -8,4 +8,4 @@ person.o: person.h person.c
 	$(CC) $(CFLAGS) -c person.c
 
 clean:
-	rm -f person *.o person
+	rm -f person *.o
