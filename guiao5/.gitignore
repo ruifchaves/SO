@@ -2,6 +2,7 @@
 myfifo
 piping
 log.txt
+gui5
 
 # Prerequisites
 *.d
