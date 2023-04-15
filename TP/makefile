@@ -1,7 +1,40 @@
+define WELCOME_BODY
+############   BEM VINDO AO RASTREAMENTO E MONITORIZAÇÃO DA EXECUÇÃO DE PROGRAMAS!   ############
+
+	TARGET
+-Executar um programa individual:
+    ./tracer execute -u "prog arg1 (...) argN"
+
+-Executar uma pipeline de programas:
+    ./tracer execute -p "progA arg1 (...) argN | progB arg1 (...) argN | progC arg1 (...) argN"
+
+-Listar programas em execução:
+    ./tracer status
+
+-Total de tempo de execução de um conjunto de programas terminados:
+    ./tracer stats-time PID1 PID2 (...) PIDN
+
+-Número de vezes que um certo programa foi executado:
+    ./tracer stats-command progA PID1 PID2 (...) PIDN
+
+-Listar programas únicos executados:
+    ./tracer stats-uniq PID1 PID2 (...) PIDN
+
+	SERVIDOR
+-Executar o Servidor:
+    ./monitor PIDS-folder
+
+#################################################################################################
+endef
+
 CC = gcc
 CFLAGS = -Wall
 
-all: folders server client
+all: folders server client welcome
+
+export WELCOME_BODY
+welcome:
+	@echo "$$WELCOME_BODY"
 
 server: bin/monitor
 
