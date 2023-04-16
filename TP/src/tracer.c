@@ -1,12 +1,13 @@
-#include <stdio.h> //remover soon enough
+#include <stdio.h>      //sprintf
 #include <sys/types.h>  //fifos, open
 #include <sys/stat.h>   //fifos, open
 #include <sys/wait.h>   //wait
 #include <stdlib.h>     //exit
-#include <string.h>     //strcmp
 #include <unistd.h>     //close
+#include <string.h>     //strlen, strcmp
 #include <fcntl.h>      //open
 #include <errno.h>      //errno
+#include <time.h>       //clocks_per_sec
 
 #define fifo_cliSer "fifo_client_server"
 #define fifo_serCli "fifo_server_client"
@@ -22,18 +23,20 @@ int execute_single(char* command){
     int resf;
     char* exec_args[32];
     int res_exec;
-    int res;
-    int status;
     char fifo_outp[100], outp[100];
-    double cpu_time_used
+    clock_t start;
+    clock_t end;
+    double cpu_time_used;
+    int res, status;
 
+    //adicionar esta struct ao header file conjunto?
     //verificar que é menor que o buff_size
     //timeval better than clock_t? microsecond precision but real-world time use and not CPU
-    typedef struct Info_server {
+/*     typedef struct Info_server {
         char fifo_outp2[100];
         int pid_exec;
         clock_t start;
-    } Info_server; //or struct timeval start, end;?
+    } Info_server; */ //or struct timeval start, end;?
 
 
     //parse dos argumentos
@@ -45,27 +48,53 @@ int execute_single(char* command){
         i++;
     }
     exec_args[i] = NULL;
-    
+
     resf = fork();
     if(resf == 0){
         res_exec = execvp(exec_args[0], exec_args);
         _exit(res_exec);
+    } else {
+        //fazer prep e enviar info ao pipe
+        int query_int = 10;
+        write(fd_clientServer, &query_int, sizeof(int));
+        //INFORMAR O SERVIDOR
+        // -pid, nome do prog (command), timestamp
+        write(fd_clientServer, &resf, sizeof(int));
+        int prog_name_size = strlen(exec_args[0]);
+        write(fd_clientServer, &prog_name_size, sizeof(int));
+        write(fd_clientServer, exec_args[0], prog_name_size * sizeof(char));
+
+        start = clock();
+        write(fd_clientServer, &start, sizeof(clock_t));
+
+        //INFORMAR O UTILIZADOR
+        sprintf(outp, "Running PID %d\n", resf);
+        write(1, &outp, strlen(outp)*sizeof(char));
+
+
+
+
+        //enviar a dizer que pode comecar atraves de um pipe anonimo??
+
+        //fazer wait e enviar info ao server
+        if(resf != -1){
+            waitpid(resf, &status, 0);
+            if(WIFEXITED(status)) {
+                res = WEXITSTATUS(status); //adicionar feedback de erro
+                end = clock();
+                cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+                printf("%f\n", cpu_time_used);
+                sprintf(outp, "Ended in %f ms\n", cpu_time_used * 1000); //secs to ms
+                write(1, &cpu_time_used, sizeof(double));
+            } else
+                res = -1;
+        } else res = -1;
     }
+    
 
-    //INFORMAR O SERVIDOR
-    // -pid, nome do prog (command), timestamp
-    sprintf(fifo_outp, "exec_single");
-    write(fd_clientServer, fifo_outp, sizeof(char)*strlen(fifo_outp)); //envia 100 ou apenas o exec_single?
-    write(fd_clientServer, &resf, sizeof(resf));
-    start = clock();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    write(fd_clientServer, exec_args[0], strlen(exec_args[0])*sizeof(char));
-
-    //INFORMAR O UTILIZADOR
-    sprintf(outp, "Running PID %d\n", resf);
-    write(1, outp, strlen(outp)*sizeof(char));
-    return res;
-
+    
+    //close(fd_clientServer);
+    return 0;
 }
 
 /* $ ./tracer execute -p "prog-a arg-1 (...) arg-n | prog-b arg-1 (...) arg-n | prog-c arg-1 (...) arg-n"
@@ -108,7 +137,7 @@ int stats_uniq(){
 int createFIFO(){
     char fifoname[50];
 
-    sprintf(fifoname, "/tmp/%s_%d", fifo_serCli, getpid());
+    sprintf(fifoname, "../tmp/%s_%d", fifo_serCli, getpid());
     int res_createfifo = mkfifo(fifoname, 0660);
     if(res_createfifo == -1){
         if(errno != EEXIST) {
@@ -122,29 +151,43 @@ int createFIFO(){
 
 int main(int argc, char* argv[]){
     char fifoname[50];
-    char outp[150];
+    char outp[300];
 
     //abrir fifo para enviar msgs ao server
-    sprintf(fifoname, "/tmp/%s", fifo_cliSer);
-    int fd_clientServer = open(fifoname, O_WRONLY);
+    sprintf(fifoname, "../tmp/%s", fifo_cliSer);
+    fd_clientServer = open(fifoname, O_WRONLY);
     if(fd_clientServer == -1){
-        perror("Error opening Client->Server pipe");
-        exit(-1);
+        printf("test\n");
+        perror("Error opening Client->Server pipe to write");
+        exit(-1); //flushing output buffers and closing open files, better than return
     }
 
     //criar fifo servidor -> cliente
     if(createFIFO() != 0) exit(-1);
 
     //parse dos args da bash
-    char* query = argv[1];
-    
 
-    if(strcmp(query, "execute") == 0 && argc == 4) {
+    if (argc == 1){
+        sprintf(outp, "Invalid tracer request. Please try again...\n");
+        write(1, outp, sizeof(char) * strlen(outp));
+        exit(-1);
+    }
+
+    char* query = argv[1];
+    if(strcmp(query, "execute") == 0 && argc >= 2) {
+        if(argc == 3 || argc == 2) {
+            sprintf(outp, 
+"Invalid tracer request. Please try again...\n\
+Usage:\n\
+        ./tracer execute -u \"prog arg1 (...) argN\"\n\
+or      ./tracer execute -p \"progA arg1 (...) argN | progB arg1 (...) argN\"\n");
+            write(1, outp, sizeof(char) * strlen(outp));
+            exit(-1);
+        }
         char* flag = argv[2];
         char* command = argv[3];
-
-        if(strcmp(flag, "-u")) execute_single(command);
-        if(strcmp(flag, "-p")) execute_pipeline(command);
+        if(strcmp(flag, "-u") == 0) execute_single(command);
+        if(strcmp(flag, "-p") == 0) execute_pipeline(command);
     }
     else if(strcmp(query, "status") == 0 && argc == 2) 
             status();
@@ -167,12 +210,6 @@ int main(int argc, char* argv[]){
             pids[i] = atoi(argv[i+2]);
         stats_uniq(argc-2, pids);
     }
-    else {
-        sprintf(outp, "Invalid tracer request. Please try again...\n");
-        write(1, outp, sizeof(char)*strlen(outp));
-        exit(-1);
-    }
 
-    close(fd_clientServer);
     return 0;
 }

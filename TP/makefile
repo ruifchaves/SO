@@ -28,9 +28,9 @@ define WELCOME_BODY
 endef
 
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -Wno-unused-variable -Wno-unused-but-set-variable
 
-all: folders server client welcome
+all: folders server client
 
 export WELCOME_BODY
 welcome:
