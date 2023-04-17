@@ -13,6 +13,11 @@
 #define fifo_serCli "fifo_server_client"
 
 int fd_clientServer;
+int fd_serverClient;
+char fifoname_write[50];
+char fifoname_read[50];
+
+
 
 //$ ./tracer execute -u "prog-a arg-1 (...) arg-n"
 //Running PID 3090
@@ -33,11 +38,11 @@ int execute_single(char* command){
     //verificar que é menor que o buff_size
     //timeval better than clock_t? microsecond precision but real-world time use and not CPU
 /*     typedef struct Info_server {
-        char fifo_outp2[100];
         int pid_exec;
+        char prog_name[100];
         clock_t start;
     } Info_server; */ //or struct timeval start, end;?
-
+    
 
     //parse dos argumentos
     char* string = strtok(command, " ");
@@ -51,6 +56,8 @@ int execute_single(char* command){
 
     resf = fork();
     if(resf == 0){
+        //fazer esperar pela confirmacao do pai para avancar
+
         res_exec = execvp(exec_args[0], exec_args);
         _exit(res_exec);
     } else {
@@ -58,13 +65,14 @@ int execute_single(char* command){
         int query_int = 10;
         write(fd_clientServer, &query_int, sizeof(int));
         //INFORMAR O SERVIDOR
-        // -pid, nome do prog (command), timestamp
+        // -pid, nome do prog (command), timestamp inicial
         write(fd_clientServer, &resf, sizeof(int));
         int prog_name_size = strlen(exec_args[0]);
         write(fd_clientServer, &prog_name_size, sizeof(int));
         write(fd_clientServer, exec_args[0], prog_name_size * sizeof(char));
 
         start = clock();
+        printf("start sent: %ld", start);
         write(fd_clientServer, &start, sizeof(clock_t));
 
         //INFORMAR O UTILIZADOR
@@ -82,10 +90,14 @@ int execute_single(char* command){
             if(WIFEXITED(status)) {
                 res = WEXITSTATUS(status); //adicionar feedback de erro
                 end = clock();
-                cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-                printf("%f\n", cpu_time_used);
-                sprintf(outp, "Ended in %f ms\n", cpu_time_used * 1000); //secs to ms
-                write(1, &cpu_time_used, sizeof(double));
+                cpu_time_used = (((double) (end - start)) / CLOCKS_PER_SEC) * 1000;
+                //INFORMAR O SERVIDOR
+                // -pid, timestamp final
+                write(fd_clientServer, &resf, sizeof(int));
+                write(fd_clientServer, &end, sizeof(clock_t));
+                //INFORMAR O UTILIZADOR
+                sprintf(outp, "Ended in %f ms\n", cpu_time_used); //secs to ms
+                write(1, &outp, strlen(outp) * sizeof(char));
             } else
                 res = -1;
         } else res = -1;
@@ -111,6 +123,21 @@ $ ./tracer status
 3320 prog-h 20 ms
 3590 prog-d | prog-e | prog z 100ms */
 int status(){
+
+    //fazer prep e enviar info ao pipe
+    int query_int = 30;
+    write(fd_clientServer, &query_int, sizeof(int));
+
+    int fifoname_read_size = strlen(fifoname_read);
+    write(fd_clientServer, &fifoname_read_size, sizeof(int));
+    write(fd_clientServer, &fifoname_read, fifoname_read_size);
+
+    fd_serverClient = open(fifoname_read, O_RDONLY);
+    char teste[5];
+    read(fd_serverClient, &teste, 5);
+    printf("teste: %s\n", teste);
+
+    //receber struct 
     return 0;
 }
 
@@ -135,10 +162,10 @@ int stats_uniq(){
 }
 
 int createFIFO(){
-    char fifoname[50];
+    //fifoname_read[50];
 
-    sprintf(fifoname, "../tmp/%s_%d", fifo_serCli, getpid());
-    int res_createfifo = mkfifo(fifoname, 0660);
+    sprintf(fifoname_read, "../tmp/%s_%d", fifo_serCli, getpid());
+    int res_createfifo = mkfifo(fifoname_read, 0660);
     if(res_createfifo == -1){
         if(errno != EEXIST) {
             perror("Error creating Server->Client pipe");
@@ -150,12 +177,12 @@ int createFIFO(){
 
 
 int main(int argc, char* argv[]){
-    char fifoname[50];
+    //fifoname_write[50];
     char outp[300];
 
     //abrir fifo para enviar msgs ao server
-    sprintf(fifoname, "../tmp/%s", fifo_cliSer);
-    fd_clientServer = open(fifoname, O_WRONLY);
+    sprintf(fifoname_write, "../tmp/%s", fifo_cliSer);
+    fd_clientServer = open(fifoname_write, O_WRONLY);
     if(fd_clientServer == -1){
         printf("test\n");
         perror("Error opening Client->Server pipe to write");
