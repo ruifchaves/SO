@@ -106,7 +106,7 @@ int main(int argc, char* agrv[]){
     int fd_clientServer;
     int res_readfifo;
     char fifo_in[100];
-    char outp[100];
+    char outp[200];
 
     //criar pipe para leitura do escrito pelos clientes
     sprintf(fifoname, "../tmp/%s", fifo_cliSer);
@@ -132,7 +132,7 @@ int main(int argc, char* agrv[]){
         while((res_readfifo = read(fd_clientServer, &query_int, sizeof(int))) > 0){
             if(query_int == 10){  //execute_single
                 sprintf(outp, "[REQUEST] New execute request\n");
-                write(1, &outp, sizeof(outp));
+                write(1, &outp, strlen(outp));
 
                 //collect sent info from new request
                 int pid;
@@ -144,7 +144,6 @@ int main(int argc, char* agrv[]){
                 read(fd_clientServer, &prog_name, prog_name_size * sizeof(char));
                 prog_name[prog_name_size] = '\0'; //add null terminator
                 read(fd_clientServer, &start_time, sizeof(clock_t));
-                printf("start received: %ld\n", start_time);
                 sprintf(outp, "[EXECUTE Start] PID %d | Command: %s | Start time: %ld\n", pid, prog_name, start_time);
                 write(1, &outp, sizeof(char) * strlen(outp));
 
@@ -163,39 +162,59 @@ int main(int argc, char* agrv[]){
 
             } else if(query_int == 20) { //execute_pipeline
                 sprintf(outp, "[REQUEST] New execute request\n");
-                write(1, &outp, (strlen(outp) + 1));
+                write(1, &outp, strlen(outp));
 
                 return 0;
             } else if(query_int == 30) { //status
+                //char outp[200];
                 sprintf(outp, "[REQUEST] New status request\n");
-                write(1, &outp, sizeof(outp));
+                write(1, &outp, strlen(outp));
 
-                if(sizellExecs() == 0){
-                    sprintf(outp, "[STATUS] That aren't any programs currently running");
-                    write(1, &outp, sizeof(char) * strlen(outp));
-                } else {
-                    int fifo_name_size;
-                    read(fd_clientServer, &fifo_name_size, sizeof(int));
-                    char fifo_name[fifo_name_size];
-                    read(fd_clientServer, &fifo_name, fifo_name_size);
-                    printf("debug: fifo_name_size %d %s\n", fifo_name_size, fifo_name);
+                //receber o nome do fifo criado
+                int fifo_name_size;
+                read(fd_clientServer, &fifo_name_size, sizeof(int));
+                char fifo_name[fifo_name_size];
+                read(fd_clientServer, &fifo_name, fifo_name_size);
 
-                    //seguir a abrir e escrever no fifo
-                    fd_serverClient = open(fifo_name, O_WRONLY);
-                    write(fd_serverClient, "teste", 5);
+                ////abrir o fifo entre servidor e cliente
+                fd_serverClient = open(fifo_name, O_WRONLY);
+                if(fd_serverClient == -1){
+                    perror("Error opening Server->Client pipe to write");
+                    exit(-1);
                 }
+
+                //verificar se há algum programa em execução
+                int sizell = sizellExecs();
+                write(fd_serverClient, &sizell, sizeof(int));
+                if(sizell == 0){
+                    sprintf(outp, "[STATUS] That aren't any programs currently running\n");
+                    write(1, &outp, strlen(outp));
+                    //sprintf(outp, "That aren't any programs currently running");
+                    //int error_noProgRunning_size = strlen(outp);
+                    //write(fd_serverClient, &error_noProgRunning_size, sizeof(int));
+                    //write(fd_serverClient, &outp, strlen(outp));
+                } else {
+                    llExecs* tmp = currExecs;
+                    for(llExecs* tmp = currExecs; tmp != NULL; tmp=tmp->next){
+                        sprintf(outp, "%d %s %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, tmp->exec_info.start);
+                        int exec_size = strlen(outp);
+                        write(fd_serverClient, &exec_size, sizeof(int));
+                        write(fd_serverClient, &outp, exec_size);
+                    }
+                }
+                printllExecs();
                 //return 0;
-            } else if(query_int == 20) { //stats_time
+            } else if(query_int == 40) { //stats_time
                 sprintf(outp, "[REQUEST] New stats_time request\n");
-                write(1, &outp, sizeof(outp));
+                write(1, &outp, strlen(outp));
                 return 0;
-            } else if(query_int == 20) { //stats_command
+            } else if(query_int == 50) { //stats_command
                 sprintf(outp, "[REQUEST] New stats_command request\n");
-                write(1, &outp, sizeof(outp));
+                write(1, &outp, strlen(outp));
                 return 0;
-            } else if(query_int == 20) { //stats_uniq
+            } else if(query_int == 60) { //stats_uniq
                 sprintf(outp, "[REQUEST] New stats_uniq request\n");
-                write(1, &outp, sizeof(outp));
+                write(1, &outp, strlen(outp));
                 return 0;
             }
         }

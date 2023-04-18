@@ -69,15 +69,14 @@ int execute_single(char* command){
         write(fd_clientServer, &resf, sizeof(int));
         int prog_name_size = strlen(exec_args[0]);
         write(fd_clientServer, &prog_name_size, sizeof(int));
-        write(fd_clientServer, exec_args[0], prog_name_size * sizeof(char));
+        write(fd_clientServer, exec_args[0], prog_name_size);
 
         start = clock();
-        printf("start sent: %ld", start);
         write(fd_clientServer, &start, sizeof(clock_t));
 
         //INFORMAR O UTILIZADOR
         sprintf(outp, "Running PID %d\n", resf);
-        write(1, &outp, strlen(outp)*sizeof(char));
+        write(1, &outp, strlen(outp));
 
 
 
@@ -97,7 +96,7 @@ int execute_single(char* command){
                 write(fd_clientServer, &end, sizeof(clock_t));
                 //INFORMAR O UTILIZADOR
                 sprintf(outp, "Ended in %f ms\n", cpu_time_used); //secs to ms
-                write(1, &outp, strlen(outp) * sizeof(char));
+                write(1, &outp, strlen(outp));
             } else
                 res = -1;
         } else res = -1;
@@ -123,19 +122,39 @@ $ ./tracer status
 3320 prog-h 20 ms
 3590 prog-d | prog-e | prog z 100ms */
 int status(){
+    char outp[300];
 
-    //fazer prep e enviar info ao pipe
+    //fazer prep e enviar query_int para o monitor
     int query_int = 30;
     write(fd_clientServer, &query_int, sizeof(int));
 
+    //enviar para o monitor o nome do pipe criado para este pid
     int fifoname_read_size = strlen(fifoname_read);
     write(fd_clientServer, &fifoname_read_size, sizeof(int));
     write(fd_clientServer, &fifoname_read, fifoname_read_size);
 
+    //abrir o pipe criado para este pid para ler info enviada pelo monitor
     fd_serverClient = open(fifoname_read, O_RDONLY);
-    char teste[5];
-    read(fd_serverClient, &teste, 5);
-    printf("teste: %s\n", teste);
+    if(fd_serverClient == -1){
+        perror("Error opening Server->Client pipe to read");
+        exit(-1);
+    }
+
+    int sizell;
+    read(fd_serverClient, &sizell, sizeof(int));
+    if(sizell == 0){
+        sprintf(outp, "[STATUS] That aren't any programs currently running\n");
+        write(1, &outp, strlen(outp));
+        exit(0);
+    } else {
+        for(int i = 0; i < sizell; i++){
+            int exec_size;
+            read(fd_serverClient, &exec_size, sizeof(int));
+            char exec[exec_size];
+            read(fd_serverClient, &exec, exec_size);
+            write(1, &exec, exec_size);
+        }
+    }
 
     //receber struct 
     return 0;
@@ -184,7 +203,6 @@ int main(int argc, char* argv[]){
     sprintf(fifoname_write, "../tmp/%s", fifo_cliSer);
     fd_clientServer = open(fifoname_write, O_WRONLY);
     if(fd_clientServer == -1){
-        printf("test\n");
         perror("Error opening Client->Server pipe to write");
         exit(-1); //flushing output buffers and closing open files, better than return
     }
