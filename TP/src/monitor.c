@@ -7,14 +7,15 @@
 #include <stdlib.h>     //exit
 #include <string.h>     //strlen, strcmp
 #include <time.h>       //clock_t, clock
+#include <sys/wait.h>   //wait
 
 
 #define fifo_cliSer "fifo_client_server"
 #define fifo_serCli "fifo_server_client"
 
 int fd_serverClient;
-int llExecs_size;
-
+int llexec_size;
+int llfin_size;
 
 //definir uma lista ligada para ligar as execucoes atuais
 //ao ter uma lista ligada allows for constant-time insertion and deletion of elements
@@ -25,26 +26,39 @@ typedef struct exec {
     clock_t end;
 } exec;
 
-typedef struct llExecs {
+typedef struct llexec {
     exec exec_info;
-    struct llExecs* next;
-} llExecs;
+    struct llexec* next;
+} llexec;
+
+typedef struct llfin {
+    exec exec_info;
+    struct llfin* next;
+} llfin;
 
 
-llExecs* currExecs;
+llexec* currExecs;
+llfin* finExecs;
 
-llExecs* init_llExecs() {
-    llExecs* head = NULL;
+
+llexec* init_llexec() {
+    llexec* head = NULL;
     return head;
 }
 
-exec* addExec(int pid, char* name, clock_t start) {
+llfin* init_llfin() {
+    llfin* head = NULL;
+    return head;
+}
+
+exec* add_exec(int pid, char* name, clock_t start) {
     exec* new = malloc(sizeof(exec));
     new->pid = pid;
     strcpy(new->prog_name, name);
     new->start = start;
+    new->end = 0.0;
 
-    llExecs* node = malloc(sizeof(llExecs));
+    llexec* node = malloc(sizeof(llexec));
     node->exec_info = *new;
     node->next = currExecs;
     currExecs = node;
@@ -52,26 +66,18 @@ exec* addExec(int pid, char* name, clock_t start) {
     return new;
 }
 
+void add_finExec(exec* finished){
+    llfin* node = malloc(sizeof(llfin));
+    node->exec_info = *finished;
+    node->next = finExecs;
+    finExecs = node;
 
-
-exec* newExec(int pid, char* name, clock_t start) {
-    exec* new = malloc(sizeof(exec));
-    new->pid = pid;
-    strcpy(new->prog_name, name);
-    new->start = start;
-    return new;
+    llfin_size++;
 }
 
-void addExecs(exec* info) {
-    llExecs* new = malloc(sizeof(llExecs));
-    new->exec_info = *info;
-    new->next = currExecs;
-    currExecs = new;
-}
-
-void removeExecs(int pid){
-    llExecs* current = currExecs;
-    llExecs* previous = NULL;
+void remove_exec(int pid){
+    llexec* current = currExecs;
+    llexec* previous = NULL;
 
     while (current != NULL && current->exec_info.pid != pid) {
         previous = current;
@@ -88,11 +94,13 @@ void removeExecs(int pid){
         previous->next = current->next;
     }
 
+    add_finExec(&current->exec_info);
+
     free(current);
 }
 
-void printllExecs() {
-    llExecs* current = currExecs;
+void print_llexec() {
+    llexec* current = currExecs;
     int i = 1;
     while (current != NULL) {
         char outp[200];
@@ -103,87 +111,67 @@ void printllExecs() {
     }
 }
 
-int sizellExecs(){
+void print_llfin() {
+    llfin* current = finExecs;
+    int i = 1;
+    while (current != NULL) {
+        char outp[200];
+        sprintf(outp, "[Finished Program #%d] PID %d | Program Name %s | Start Time %ld | End Time %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, current->exec_info.start, current->exec_info.end);
+        write(1, &outp, strlen(outp));
+        current = current->next;
+        i++;
+    }
+}
+
+int size_llexec(){
     int i;
-    llExecs* current = currExecs;
+    llexec* current = currExecs;
     for(i = 0; current != NULL; i++, current=current->next);
     return i;
 }
 
-/////////////////////// HASH TABLE //////////////////////
-
-#define HASH_TABLE_SIZE 100
-
-typedef struct finished_exec {
-    int pid;
-    double start_time;
-    double end_time;
-    struct finished_exec* next;
-} finished_exec;
-
-typedef struct hash_table {
-    finished_exec** table;
-} hash_table;
-
-hash_table* htabFin;
-
-int hash(int pid) {
-    return pid % HASH_TABLE_SIZE;
+int size_llfin(){
+    int i;
+    llfin* current = finExecs;
+    for(i = 0; current != NULL; i++, current=current->next);
+    return i;
 }
 
-void init_htabFin() {
-    htabFin = (hash_table*) malloc(sizeof(hash_table));
-    htabFin->table = (finished_exec**) malloc(HASH_TABLE_SIZE * sizeof(finished_exec*));
-    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
-        htabFin->table[i] = NULL;
-    }
-}
 
-void insert_finished_exec(int pid, double start, double end) {
-    finished_exec* new_exec = (finished_exec*) malloc(sizeof(finished_exec));
-    new_exec->pid = pid;
-    new_exec->start_time = start;
-    new_exec->end_time = end;
-    new_exec->next = NULL;
-    
-    int index = hash(pid);
-    finished_exec* current = htabFin->table[index];
-    if (current == NULL) {
-        htabFin->table[index] = new_exec;
-    } else {
-        while (current->next != NULL) {
-            current = current->next;
-        }
-        current->next = new_exec;
-    }
-}
 
-finished_exec* search_finished_exec(int pid) {
-    int index = hash(pid);
-    finished_exec* current = htabFin->table[index];
-    while (current != NULL) {
-        if (current->pid == pid) {
-            return current;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
 
-void print_hash_table() {
-    char outp[100];
-    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
-        finished_exec* current = htabFin->table[i];
-        while (current != NULL) {
-            sprintf(outp, "[Finished Program] PID %d | Start Time %.2lf | End Time %.2lf\n", current->pid, current->start_time, current->end_time);
-            write(1, &outp, strlen(outp));
-            current = current->next;
+int search_pid_finishedExecs(int* pids, int pids_size){
+
+    for(int i = 0; i < pids_size; i++) printf("pids[i] %d\n", pids[i]);
+    llfin* current = finExecs;
+    int total_time = 0;
+    int status;
+
+    //comparar os varios pids em cada fork/elemento da ll  concorrentemente
+    //aka comparacao se algum dos pids passados em pids é o elem
+    //em vez de comparar todos os pids no current e fazer o mesmo no seguinte
+    for(int i=0; i < llfin_size; i++, current=current->next){
+        int resf = fork();
+        if(resf == 0){
+            int llelem_pid = current->exec_info.pid;
+            int i;
+            for(i = 0; llelem_pid != pids[i] && i < pids_size; i++);
+            if(i == pids_size) _exit(0);
+
+            _exit((clock_t) current->exec_info.start);// - (int) current->exec_info.start);
         }
     }
+
+    for(int i = 0; i < llfin_size; i++){
+        wait(&status);
+        printf("WEXITSTATUS %d: %d\n", i, WEXITSTATUS(status));
+        total_time += WEXITSTATUS(status);
+        //printf("total time: %d\n", total_time);
+    }
+
+    return total_time;
 }
 
-
-//um execute ao terminal guardar a struct no ficheiro correspondente ao 
 
 int main(int argc, char* agrv[]){
     char fifoname[50];
@@ -192,7 +180,8 @@ int main(int argc, char* agrv[]){
     int res_readfifo;
     char fifo_in[100];
     char outp[200];
-    //llFinishedExecs_size = 0;
+    llexec_size = 0;
+    llfin_size = 0;
 
     //criar pipe para leitura do escrito pelos clientes
     sprintf(fifoname, "../tmp/%s", fifo_cliSer);
@@ -204,12 +193,10 @@ int main(int argc, char* agrv[]){
         }
     }
 
-    init_htabFin();
-    currExecs = init_llExecs();
-    //finExecs = initllFinishedExecs();
+    currExecs = init_llexec();
+    finExecs = init_llfin();
     while(1){
         //Abrir o pipe criado
-        print_hash_table();
         fd_clientServer = open(fifoname, O_RDONLY);
         if(fd_clientServer == -1){
             perror("Error opening Client->Server pipe to read");
@@ -237,8 +224,7 @@ int main(int argc, char* agrv[]){
                 write(1, &outp, sizeof(char) * strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
-                addExec(pid, prog_name, start_time);
-                insert_finished_exec(pid, start_time, 0.0);
+                add_exec(pid, prog_name, start_time);
 
                 //collect sent info from request end
                 read(fd_clientServer, &pid, sizeof(int));
@@ -248,16 +234,24 @@ int main(int argc, char* agrv[]){
                 sprintf(outp, "[EXECUTE End]   PID %d | End time: %ld\n", pid, end_time);
                 write(1, &outp, strlen(outp));
 
-                //removeExecs(pid);
-                //addFinExecs(prog_exec, end_time);
+                remove_exec(pid);
+                close(fd_serverClient);
+
+
+
+
+
 
             } else if(query_int == 20) { //execute_pipeline
                 sprintf(outp, "[REQUEST] New execute request\n");
                 write(1, &outp, strlen(outp));
 
                 return 0;
+
+
+
+
             } else if(query_int == 30) { //status
-                //char outp[200];
                 sprintf(outp, "[REQUEST] New status request\n");
                 write(1, &outp, strlen(outp));
 
@@ -275,23 +269,28 @@ int main(int argc, char* agrv[]){
                 }
 
                 //verificar se há algum programa em execução
-                int sizell = sizellExecs();
+                int sizell = size_llexec();
                 write(fd_serverClient, &sizell, sizeof(int));
                 if(sizell == 0){
                     sprintf(outp, "[STATUS] That aren't any programs currently running\n");
                     write(1, &outp, strlen(outp));
                 } else {
-                    llExecs* tmp = currExecs;
-                    for(llExecs* tmp = currExecs; tmp != NULL; tmp=tmp->next){
+                    llexec* tmp = currExecs;
+                    for(llexec* tmp = currExecs; tmp != NULL; tmp=tmp->next){
                         sprintf(outp, "%d %s %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, tmp->exec_info.start);
                         int exec_size = strlen(outp);
                         write(fd_serverClient, &exec_size, sizeof(int));
                         write(fd_serverClient, &outp, exec_size);
                     }
                 }
-                printllExecs();
-                //printllFinishedExecs();
-                //return 0;
+
+                print_llexec(); //debug
+                print_llfin();  //debug
+
+
+
+
+
             } else if(query_int == 40) { //stats_time
                 sprintf(outp, "[REQUEST] New stats_time request\n");
                 write(1, &outp, strlen(outp));
@@ -302,17 +301,46 @@ int main(int argc, char* agrv[]){
                 char fifo_name[fifo_name_size];
                 read(fd_clientServer, &fifo_name, fifo_name_size);
 
-                ////abrir o fifo entre servidor e cliente
-                fd_serverClient = open(fifo_name, O_WRONLY);
+                //abrir o fifo entre servidor e cliente
+                fd_serverClient = open(fifo_name, O_WRONLY);                    
                 if(fd_serverClient == -1){
                     perror("Error opening Server->Client pipe to write");
                     exit(-1);
                 }
 
+                //verificar se há algum programa que já acabou
+                int sizell = size_llfin();
+                write(fd_serverClient, &sizell, sizeof(int));
+                if(sizell == 0){
+                    sprintf(outp, "[STATS_TIME] That aren't any programs that have already finished\n");
+                    write(1, &outp, strlen(outp));
+                } else {
+                    //ler pids e pids_size
+                    int pids_size;
+                    read(fd_clientServer, &pids_size, sizeof(int));
+                    int pids[pids_size];
+                    for(int i = 0; i < pids_size; i++){
+                        int tmp;
+                        read(fd_clientServer, &tmp, sizeof(int));
+                        pids[i] = tmp;
+                        //printf("pids received: %d\n", pids[i]);
+                    }
+                    
+                    //calcular tempo total
+                    int total_time = search_pid_finishedExecs(pids, pids_size);
+                    printf("current->exec_info.end: %d\n", total_time);
+                    double cpu_time_used = (((double) total_time) / CLOCKS_PER_SEC) * 1000;
+
+                    //enviar string de output
+                    sprintf(outp, "Total execution time is %f ms\n", cpu_time_used);
+                    int tot_size = strlen(outp);
+                    write(fd_serverClient, &tot_size, sizeof(int));
+                    write(fd_serverClient, &outp, tot_size);
+                }
 
 
-                //int size = search_pid_finishedExecs();
-                //write()
+
+
 
 
             } else if(query_int == 50) { //stats_command

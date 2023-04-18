@@ -143,7 +143,7 @@ int status(){
     int sizell;
     read(fd_serverClient, &sizell, sizeof(int));
     if(sizell == 0){
-        sprintf(outp, "[STATUS] That aren't any programs currently running\n");
+        sprintf(outp, "That aren't any programs currently running\n");
         write(1, &outp, strlen(outp));
         exit(0);
     } else {
@@ -162,7 +162,49 @@ int status(){
 
 /* $ ./tracer stats-time PID-1 PID-2 (...) PID-N
 Total execution time is 1000 ms */
-int stats_time(){
+int stats_time(int* pids, int pids_size){
+    char outp[300];
+
+    //fazer prep e enviar query_int para o monitor
+    int query_int = 40;
+    write(fd_clientServer, &query_int, sizeof(int));
+    
+    //enviar para o monitor o nome do pipe criado para este pid
+    int fifoname_read_size = strlen(fifoname_read);
+    write(fd_clientServer, &fifoname_read_size, sizeof(int));
+    write(fd_clientServer, &fifoname_read, fifoname_read_size);
+
+    //abrir o pipe criado para este pid para ler info enviada pelo monitor
+    fd_serverClient = open(fifoname_read, O_RDONLY);
+    if(fd_serverClient == -1){
+        perror("Error opening Server->Client pipe to read");
+        exit(-1);
+    }
+
+    int sizell;
+    read(fd_serverClient, &sizell, sizeof(int));
+    if(sizell == 0){
+        sprintf(outp, "That aren't any programs that have already finished\n");
+        write(1, &outp, strlen(outp));
+        exit(0);
+/*     } else if(sizell < pids_size){
+        sprintf(outp, "There haven't been as many programs that finished as your arguments\n");
+        write(1, &outp, strlen(outp));
+        exit(0); */
+    } else {
+        //enviar pids e pids_size
+        write(fd_clientServer, &pids_size, sizeof(int));
+        for(int i = 0; i < pids_size; i++)
+            write(fd_clientServer, &pids[i], sizeof(int));
+
+        //receive output
+        int tot_size;
+        read(fd_serverClient, &tot_size, sizeof(int));
+        char str[tot_size];
+        read(fd_serverClient, &str, tot_size);
+        write(1, &str, tot_size);
+    }
+
     return 0;
 }
 
@@ -236,12 +278,12 @@ or      ./tracer execute -p \"progA arg1 (...) argN | progB arg1 (...) argN\"\n"
     }
     else if(strcmp(query, "status") == 0 && argc == 2) 
             status();
-    else if(strcmp(query, "stats-time") == 0 && argc >= 4) {
+    else if(strcmp(query, "stats-time") == 0 && argc >= 3) {
         //Array de PIDs argumento
         int pids[argc-2];
-        for(int i = 0; i < argc; i++) 
+        for(int i = 0; i < argc-2; i++)
             pids[i] = atoi(argv[i+2]);
-        stats_time(argc-2, pids);
+        stats_time(pids, argc-2);
     }
     else if(strcmp(query, "stats-command") == 0 && argc >= 3) {
         char* command = argv[3];
