@@ -12,16 +12,11 @@
 #define fifo_serCli "fifo_server_client"
 
 int fd_serverClient;
+int llFinishedExecs_size;
+
 
 //definir uma lista ligada para ligar as execucoes atuais
 //ao ter uma lista ligada allows for constant-time insertion and deletion of elements
-typedef struct finishedExec {
-    int pid;
-    char prog_name[100];
-    clock_t start;
-    clock_t end;
-} *finishedExec;
-
 typedef struct exec {
     int pid;
     char prog_name[100];
@@ -33,7 +28,24 @@ typedef struct llExecs {
     struct llExecs* next;
 } llExecs;
 
+
+typedef struct finishedExec {
+    int pid;
+    char prog_name[100];
+    clock_t start;
+    clock_t end;
+} finishedExec;
+
+typedef struct llFinishedExecs {
+    finishedExec exec_info;
+    struct llFinishedExecs* next;
+} llFinishedExecs;
+
+
 llExecs* currExecs;
+llFinishedExecs* finExecs;
+
+
 
 llExecs* initllExecs() {
     llExecs* head = NULL;
@@ -65,7 +77,7 @@ void removeExecs(int pid){
     }
     
     if (current == NULL) {
-        return;
+        exit(-1);
     }
 
     if (previous == NULL) {
@@ -79,10 +91,13 @@ void removeExecs(int pid){
 
 void printllExecs() {
     llExecs* current = currExecs;
-
+    int i = 1;
     while (current != NULL) {
-        printf("PID: %d | Program Name: %s | Start Time: %ld\n", current->exec_info.pid, current->exec_info.prog_name, current->exec_info.start);
+        char outp[100];
+        sprintf(outp, "[Running Program #%d] PID %d | Program Name %s | Start Time %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, current->exec_info.start);
+        write(1, &outp, strlen(outp));
         current = current->next;
+        i++;
     }
 }
 
@@ -98,6 +113,85 @@ int sizellExecs(){
 
 
 
+//////////////7 FINISHED LL /////////////////////
+
+llFinishedExecs* initllFinishedExecs() {
+    llFinishedExecs* head = NULL;
+    return head;
+}
+
+void addFinExecs(exec* info, clock_t end) {
+    llFinishedExecs* newfin = malloc(sizeof(llFinishedExecs));
+    newfin->exec_info.pid = info->pid;
+    strcpy(newfin->exec_info.prog_name, info->prog_name);
+    newfin->exec_info.start = info->start;
+    newfin->exec_info.end = end;
+    newfin->next = finExecs;
+    finExecs = newfin;
+
+    llFinishedExecs_size++;
+}
+
+
+void printllFinishedExecs() {
+    llFinishedExecs* current = finExecs;
+    int i = 1;
+    while (current != NULL) {
+        char outp[100];
+        sprintf(outp, "[Finished Program #%d] PID %d | Program Name %s | Start Time %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, current->exec_info.start);
+        write(1, &outp, strlen(outp));
+        current = current->next;
+        i++;
+    }
+}
+
+
+
+
+
+
+
+
+int search_pid_finishedExecs(int* pids, int pids_size){
+
+    llFinishedExecs* current = finExecs;
+    double total_time = 0;
+
+    //comparar os varios pids em cada fork/elemento da ll  concorrentemente
+    //aka comparacao se algum dos pids passados em pids é o elem
+    //em vez de comparar todos os pids no current e fazer o mesmo no seguinte
+    for(int i=0; i < llFinishedExecs_size; i++, current=current->next){
+        int resf = fork();
+        if(resf == 0){
+            int llelem_pid = current->exec_info.pid;
+            for(int i = 0; llelem_pid!=pids[i] && i < pids_size, i++);
+            if(i == pids_size) _exit(0);
+            _exit(current->exec_info.end - current->exec_info.start)
+        }
+    }
+
+    for(int i = 0; i < args; i++){
+        int status;
+        pid_t terminated_pid = wait(&status);
+        double cpu_time_used = (((double) (WEXITSTATUS(status))) / CLOCKS_PER_SEC) * 1000;
+        total_time += cpu_time_used;
+    }
+    return 1;
+}
+
+
+
+
+
+
+
+
+
+
+
+llExecs* currExecs;
+llFinishedExecs* finExecs;
+
 //um execute ao terminal guardar a struct no ficheiro correspondente ao 
 
 int main(int argc, char* agrv[]){
@@ -107,6 +201,7 @@ int main(int argc, char* agrv[]){
     int res_readfifo;
     char fifo_in[100];
     char outp[200];
+    llFinishedExecs_size = 0;
 
     //criar pipe para leitura do escrito pelos clientes
     sprintf(fifoname, "../tmp/%s", fifo_cliSer);
@@ -119,6 +214,7 @@ int main(int argc, char* agrv[]){
     }
 
     currExecs = initllExecs();
+    finExecs = initllFinishedExecs();
     while(1){
         //Abrir o pipe criado
         fd_clientServer = open(fifoname, O_RDONLY);
@@ -147,8 +243,8 @@ int main(int argc, char* agrv[]){
                 sprintf(outp, "[EXECUTE Start] PID %d | Command: %s | Start time: %ld\n", pid, prog_name, start_time);
                 write(1, &outp, sizeof(char) * strlen(outp));
 
-
-                addExecs(newExec(pid, prog_name, start_time));
+                exec* prog_exec = newExec(pid, prog_name, start_time);
+                addExecs(prog_exec);
 
                 //collect sent info from request end
                 read(fd_clientServer, &pid, sizeof(int));
@@ -156,9 +252,10 @@ int main(int argc, char* agrv[]){
                 read(fd_clientServer, &end_time, sizeof(clock_t));
 
                 sprintf(outp, "[EXECUTE End]   PID %d | End time: %ld\n", pid, end_time);
-                write(1, &outp, strlen(outp) + 1);
+                write(1, &outp, strlen(outp));
 
-                //removeExecs(pid);
+                removeExecs(pid);
+                addFinExecs(prog_exec, end_time);
 
             } else if(query_int == 20) { //execute_pipeline
                 sprintf(outp, "[REQUEST] New execute request\n");
@@ -189,10 +286,6 @@ int main(int argc, char* agrv[]){
                 if(sizell == 0){
                     sprintf(outp, "[STATUS] That aren't any programs currently running\n");
                     write(1, &outp, strlen(outp));
-                    //sprintf(outp, "That aren't any programs currently running");
-                    //int error_noProgRunning_size = strlen(outp);
-                    //write(fd_serverClient, &error_noProgRunning_size, sizeof(int));
-                    //write(fd_serverClient, &outp, strlen(outp));
                 } else {
                     llExecs* tmp = currExecs;
                     for(llExecs* tmp = currExecs; tmp != NULL; tmp=tmp->next){
@@ -203,11 +296,31 @@ int main(int argc, char* agrv[]){
                     }
                 }
                 printllExecs();
+                printllFinishedExecs();
                 //return 0;
             } else if(query_int == 40) { //stats_time
                 sprintf(outp, "[REQUEST] New stats_time request\n");
                 write(1, &outp, strlen(outp));
-                return 0;
+
+                //receber o nome do fifo criado
+                int fifo_name_size;
+                read(fd_clientServer, &fifo_name_size, sizeof(int));
+                char fifo_name[fifo_name_size];
+                read(fd_clientServer, &fifo_name, fifo_name_size);
+
+                ////abrir o fifo entre servidor e cliente
+                fd_serverClient = open(fifo_name, O_WRONLY);
+                if(fd_serverClient == -1){
+                    perror("Error opening Server->Client pipe to write");
+                    exit(-1);
+                }
+
+
+
+                int size = search_pid_finishedExecs();
+                write()
+
+
             } else if(query_int == 50) { //stats_command
                 sprintf(outp, "[REQUEST] New stats_command request\n");
                 write(1, &outp, strlen(outp));
