@@ -8,6 +8,7 @@
 #include <fcntl.h>      //open
 #include <errno.h>      //errno
 #include <time.h>       //clocks_per_sec
+#include <sys/time.h>   //gettimeofday
 
 #define fifo_cliSer "fifo_client_server"
 #define fifo_serCli "fifo_server_client"
@@ -29,8 +30,7 @@ int execute_single(char* command){
     char* exec_args[32];
     int res_exec;
     char fifo_outp[100], outp[100];
-    clock_t start;
-    clock_t end;
+    struct timeval start, end;
     double cpu_time_used;
     int res, status;
 
@@ -71,8 +71,13 @@ int execute_single(char* command){
         write(fd_clientServer, &prog_name_size, sizeof(int));
         write(fd_clientServer, exec_args[0], prog_name_size);
 
-        start = clock();
-        write(fd_clientServer, &start, sizeof(clock_t));
+
+        gettimeofday(&start, NULL);
+        write(fd_clientServer, &start, sizeof(struct timeval));
+        //write(1, &start, sizeof(struct timeval));
+        long long start_ms = (start.tv_sec * 1000LL) + (start.tv_usec / 1000LL);
+        int start_int = (int)start_ms;
+        printf("%lld\n", start_ms);
 
         //INFORMAR O UTILIZADOR
         sprintf(outp, "Running PID %d\n", resf);
@@ -88,14 +93,18 @@ int execute_single(char* command){
             waitpid(resf, &status, 0);
             if(WIFEXITED(status)) {
                 res = WEXITSTATUS(status); //adicionar feedback de erro
-                end = clock();
-                cpu_time_used = (((double) (end - start)) / CLOCKS_PER_SEC) * 1000;
+                gettimeofday(&end, NULL);
+                
+                long elapsed_seconds = end.tv_sec - start.tv_sec;
+                long elapsed_useconds = end.tv_usec - start.tv_usec;
+                long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+
                 //INFORMAR O SERVIDOR
                 // -pid, timestamp final
                 write(fd_clientServer, &resf, sizeof(int));
-                write(fd_clientServer, &end, sizeof(clock_t));
+                write(fd_clientServer, &end, sizeof(struct timeval));
                 //INFORMAR O UTILIZADOR
-                sprintf(outp, "Ended in %f ms\n", cpu_time_used); //secs to ms
+                sprintf(outp, "Ended in %ld ms\n", elapsed_time); //secs to ms
                 write(1, &outp, strlen(outp));
             } else
                 res = -1;

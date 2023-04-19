@@ -7,6 +7,7 @@
 #include <stdlib.h>     //exit
 #include <string.h>     //strlen, strcmp
 #include <time.h>       //clock_t, clock
+#include <sys/time.h>   //gettimeofday
 #include <sys/wait.h>   //wait
 
 
@@ -22,8 +23,7 @@ int llfin_size;
 typedef struct exec {
     int pid;
     char prog_name[100];
-    clock_t start;
-    clock_t end;
+    struct timeval start, end;
 } exec;
 
 typedef struct llexec {
@@ -51,12 +51,11 @@ llfin* init_llfin() {
     return head;
 }
 
-exec* add_exec(int pid, char* name, clock_t start) {
+exec* add_exec(int pid, char* name, struct timeval start) {
     exec* new = malloc(sizeof(exec));
     new->pid = pid;
     strcpy(new->prog_name, name);
     new->start = start;
-    new->end = 0.0;
 
     llexec* node = malloc(sizeof(llexec));
     node->exec_info = *new;
@@ -104,7 +103,9 @@ void print_llexec() {
     int i = 1;
     while (current != NULL) {
         char outp[200];
-        sprintf(outp, "[Running Program #%d] PID %d | Program Name %s | Start Time %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, current->exec_info.start);
+        struct timeval start = current->exec_info.start;
+        long start_ms = start.tv_sec * 1000 + start.tv_usec / 1000;
+        sprintf(outp, "[Running Program #%d] PID %d | Program Name %s | Start timeval: %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, start_ms);
         write(1, &outp, strlen(outp));
         current = current->next;
         i++;
@@ -116,7 +117,11 @@ void print_llfin() {
     int i = 1;
     while (current != NULL) {
         char outp[200];
-        sprintf(outp, "[Finished Program #%d] PID %d | Program Name %s | Start Time %ld | End Time %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, current->exec_info.start, current->exec_info.end);
+        struct timeval start = current->exec_info.start;
+        struct timeval end = current->exec_info.end;
+        long start_ms = start.tv_sec * 1000 + start.tv_usec / 1000;
+        long end_ms = end.tv_sec * 1000 + end.tv_usec / 1000;
+        sprintf(outp, "[Finished Program #%d] PID %d | Program Name %s | Start Time %ld | End Time %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, start_ms, end_ms);
         write(1, &outp, strlen(outp));
         current = current->next;
         i++;
@@ -158,7 +163,10 @@ int search_pid_finishedExecs(int* pids, int pids_size){
             for(i = 0; llelem_pid != pids[i] && i < pids_size; i++);
             if(i == pids_size) _exit(0);
 
-            _exit((clock_t) current->exec_info.start);// - (int) current->exec_info.start);
+            //how to pass current->exec_info.start value to parent process??
+
+            //int elapsed_time = calculate_elapsed_time(current->exec_info.start);
+            _exit(0);// - (int) current->exec_info.start);
         }
     }
 
@@ -213,14 +221,16 @@ int main(int argc, char* agrv[]){
                 //collect sent info from new request
                 int pid;
                 int prog_name_size;
-                clock_t start_time;
+                struct timeval start_time;
                 read(fd_clientServer, &pid, sizeof(int));
                 read(fd_clientServer, &prog_name_size, sizeof(int));
                 char prog_name[prog_name_size+1];
                 read(fd_clientServer, &prog_name, prog_name_size * sizeof(char));
                 prog_name[prog_name_size] = '\0'; //add null terminator
-                read(fd_clientServer, &start_time, sizeof(clock_t));
-                sprintf(outp, "[EXECUTE Start] PID %d | Command: %s | Start time: %ld\n", pid, prog_name, start_time);
+                read(fd_clientServer, &start_time, sizeof(struct timeval));
+                
+                long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
+                sprintf(outp, "[EXECUTE Start] PID %d | Command: %s | Start timeval: %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, sizeof(char) * strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -228,10 +238,15 @@ int main(int argc, char* agrv[]){
 
                 //collect sent info from request end
                 read(fd_clientServer, &pid, sizeof(int));
-                clock_t end_time;
-                read(fd_clientServer, &end_time, sizeof(clock_t));
+                struct timeval end_time;
+                read(fd_clientServer, &end_time, sizeof(struct timeval));
 
-                sprintf(outp, "[EXECUTE End]   PID %d | End time: %ld\n", pid, end_time);
+                long end_time_ms = end_time.tv_sec * 1000 + end_time.tv_usec / 1000;
+                long elapsed_seconds = end_time.tv_sec - start_time.tv_sec;
+                long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
+                long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+
+                sprintf(outp, "[EXECUTE End]   PID %d | End timeval: %ld | Total time: %ld ms\n", pid, end_time_ms, elapsed_time);
                 write(1, &outp, strlen(outp));
 
                 remove_exec(pid);
@@ -277,7 +292,15 @@ int main(int argc, char* agrv[]){
                 } else {
                     llexec* tmp = currExecs;
                     for(llexec* tmp = currExecs; tmp != NULL; tmp=tmp->next){
-                        sprintf(outp, "%d %s %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, tmp->exec_info.start);
+                        struct timeval til_now;
+                        gettimeofday(&til_now, NULL);
+                        struct timeval start = tmp->exec_info.start;
+
+                        long elapsed_seconds = til_now.tv_sec - start.tv_sec;
+                        long elapsed_useconds = til_now.tv_usec - start.tv_usec;
+                        long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);   
+
+                        sprintf(outp, "%d %s %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, elapsed_time);
                         int exec_size = strlen(outp);
                         write(fd_serverClient, &exec_size, sizeof(int));
                         write(fd_serverClient, &outp, exec_size);
@@ -328,11 +351,9 @@ int main(int argc, char* agrv[]){
                     
                     //calcular tempo total
                     int total_time = search_pid_finishedExecs(pids, pids_size);
-                    printf("current->exec_info.end: %d\n", total_time);
-                    double cpu_time_used = (((double) total_time) / CLOCKS_PER_SEC) * 1000;
 
                     //enviar string de output
-                    sprintf(outp, "Total execution time is %f ms\n", cpu_time_used);
+                    //sprintf(outp, "Total execution time is %f ms\n", cpu_time_used);
                     int tot_size = strlen(outp);
                     write(fd_serverClient, &tot_size, sizeof(int));
                     write(fd_serverClient, &outp, tot_size);
