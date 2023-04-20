@@ -174,17 +174,17 @@ int execute_pipeline(char* command){
     //criar num_progs-1 pipes
     int pipes[num_progs-1][2];
     int num_pipes = num_progs-1;
-    for(int i = 0; i < num_pipes; i++) {
+/*     for(int i = 0; i < num_pipes; i++) {
         if(pipe(pipes[i]) < 0){ //eles aqui ja vao abrir todos e o fd já aberto acho
             perror("Error creating pipes");
             exit(1);
         }
-
-    }
+    } */
 
     //criar estrutura que faz com que saia pela ordem correta
     int pids[num_progs]; //so that it exits in order
     for(int forkid = 0; forkid < num_progs; forkid++){
+        pipe(pipes[forkid]);
         resf = fork();
         if(resf == 0){
             //fechar pipes não utilizados pelo filho
@@ -201,16 +201,18 @@ int execute_pipeline(char* command){
             int parent_pipe_in[50]; //receber o numero 
             
             int backup = dup(1);
+            if(forkid== 0 ) //dup2(p0[1], 1); close(p0[0]);
+            if(forkid== num_progs ) //dup2(p2[0], 0); close(p2[1]);
 
             //definir pipe de input
-            if(forkid > 0){
+            if(forkid > 0){ 
                 dup2(pipes[forkid-1][1], 0);//stdin já nao vem do 0 mas sim do pipe do pid anterior
-                close(pipes[forkid-1][0]);
+                //close(pipes[forkid-1][0]);
                 close(pipes[forkid-1][1]);
             }
             if(forkid < num_pipes){
                 dup2(pipes[forkid][1], 1);//stdin já nao vem do 0 mas sim do pipe do pid anterior
-                close(pipes[forkid][0]);
+                //close(pipes[forkid][0]);
                 close(pipes[forkid][1]);
             }
 
@@ -234,13 +236,20 @@ int execute_pipeline(char* command){
             //if(res_exec == 0) _exit(forkid);    
             _exit(0); //se deu erro
         } else {
+            int terminated_pid = waitpid(resf, &status, 0);  //new
 
-            //for (int clp = 0; clp < num_pipes; clp++) {
+            if(forkid > 0){
+                close(pipes[forkid-1][0]);
+                //close(pipes[forkid-1][1]);
+            }
+            //if(forkid < num_pipes){
+            //    close(pipes[forkid][0]);
+            //    close(pipes[forkid][1]);
+            //}            //for (int clp = 0; clp < num_pipes; clp++) {
             //    close(pipes[clp][0]);
             //    close(pipes[clp][1]);
             //}
             
-            int terminated_pid = waitpid(resf, &status, 0);  //new
 
             if(WIFEXITED(status)) {
                 if(WEXITSTATUS(status) < 255){
