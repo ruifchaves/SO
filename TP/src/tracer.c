@@ -154,7 +154,7 @@ int execute_pipeline(char* command){
     //parse dos argumentos
     int arg;
     for(arg = 0; arg < num_progs; arg++){
-        printf("prog %d: %s\n", arg, prog_args[arg]);
+        //printf("prog %d: %s\n", arg, prog_args[arg]);
         char* string = strtok(prog_args[arg], " ");
         num_args = 0;
         while (string != NULL) {
@@ -165,108 +165,80 @@ int execute_pipeline(char* command){
         args[arg][num_args] = NULL;
     }
 
-    //debug only, 
-    //for(int j = 0; j < num_progs; j++){
-    //    for(int o = 0; args[j][o] != NULL; o++)
-    //        printf("args[j][o]: %s args[j]: %s\n", args[j][o], args[j]);
-    //}
-
     //criar num_progs-1 pipes
-    int pipes[num_progs-1][2];
     int num_pipes = num_progs-1;
-/*     for(int i = 0; i < num_pipes; i++) {
+    int pipes[num_pipes][2];
+
+    for(int i = 0; i < num_pipes; i++) {
         if(pipe(pipes[i]) < 0){ //eles aqui ja vao abrir todos e o fd já aberto acho
             perror("Error creating pipes");
             exit(1);
         }
-    } */
+    }
 
     //criar estrutura que faz com que saia pela ordem correta
     int pids[num_progs]; //so that it exits in order
     for(int forkid = 0; forkid < num_progs; forkid++){
-        pipe(pipes[forkid]);
+        //if(forkid < num_progs) pipe(pipes[forkid]);
         resf = fork();
         if(resf == 0){
-            //fechar pipes não utilizados pelo filho
-            //filhos vao ler apenas
-            //e enviar a info para o input dos pipes seguintes
-            for(int cl = 0; cl < num_pipes; cl++){
-                if(cl != forkid-1 || cl != forkid){
-                    close(pipes[cl][0]);
-                    close(pipes[cl][1]);
-                }
-
-            }
-            char prev_pipe_in[200];  
-            int parent_pipe_in[50]; //receber o numero 
+            //fechar pipes não utilizados pelo filho, filhos vao ler apenas, e enviar a info para o input dos pipes seguintes
             
-            int backup = dup(1);
-            if(forkid== 0 ) //dup2(p0[1], 1); close(p0[0]);
-            if(forkid== num_progs ) //dup2(p2[0], 0); close(p2[1]);
-
             //definir pipe de input
-            if(forkid > 0){ 
-                dup2(pipes[forkid-1][1], 0);//stdin já nao vem do 0 mas sim do pipe do pid anterior
-                //close(pipes[forkid-1][0]);
-                close(pipes[forkid-1][1]);
-            }
-            if(forkid < num_pipes){
-                dup2(pipes[forkid][1], 1);//stdin já nao vem do 0 mas sim do pipe do pid anterior
-                //close(pipes[forkid][0]);
-                close(pipes[forkid][1]);
-            }
-
-            //printf("Child process file descriptors:\n");
-            //for (int i = 0; i < getdtablesize(); i++) {
-            //    struct stat statbuf;
-            //    if (fstat(i, &statbuf) == 0) {
-            //        printf("  %d: %s\n", i, S_ISREG(statbuf.st_mode) ? "open" : "closed");
-            //    }
-            //}
-
-            //while((res = read(0, &prev_pipe_in, 200)) > 0)
-            //    write(backup, &prev_pipe_in, 200);
-
-            //abrir o pipe com o pai? 
-            //fazer esperar pela confirmacao do pai para avancar
-
-            //testar se é a vez deste filho
-            //trocar os fds com o dup
-            res_exec = execvp(args[forkid][0], args[forkid]);
-            //if(res_exec == 0) _exit(forkid);    
-            _exit(0); //se deu erro
-        } else {
-            int terminated_pid = waitpid(resf, &status, 0);  //new
-
-            if(forkid > 0){
-                close(pipes[forkid-1][0]);
+            if(forkid == 0){                    //primeiro comando
+                dup2(pipes[forkid][1], STDOUT_FILENO);      //mudar 1 para pipe 1
+                //close(pipes[forkid][0]);        //fechar pipe 0 pq vai ler do 0
+                // nao fechar o pipe 1
+                //close(pipes[forkid][1]);
+            } else if(forkid > 0 && forkid < num_pipes){
+                dup2(pipes[forkid-1][1], STDIN_FILENO);    //mudar 0 para pipe anterior 1
+                dup2(pipes[forkid][1], STDOUT_FILENO);      //mudar 1 para pipe 1
+                //close(pipes[forkid][0]);        //fechar pipe 0 pq vai ler do anterior
+                // nao fechar o pipe 1
                 //close(pipes[forkid-1][1]);
+                //close(pipes[forkid][0]);
+                
+            } else if(forkid == num_pipes){ //ultimo comando  //sera que o pipe daqui nao é preciso?
+                char buffer[200];
+                dup2(pipes[forkid-1][1], STDIN_FILENO);    //mudar 0 para pipe anterior 1
+                //close(pipes[forkid][0]);        //fechar pipe 0 pq vai ler do anterior
+                //close(pipes[forkid][1]);        //fechar pipe 1 (este não existe!)
+                //close(pipes[forkid-1][1]);
+                //close(pipes[forkid][0]);  
+                //close(pipes[forkid][1]);
+
+                //while(read(0, &buffer, 200) > 0)
+                //    write(1, &buffer, 200);
             }
-            //if(forkid < num_pipes){
-            //    close(pipes[forkid][0]);
-            //    close(pipes[forkid][1]);
-            //}            //for (int clp = 0; clp < num_pipes; clp++) {
-            //    close(pipes[clp][0]);
-            //    close(pipes[clp][1]);
+
+            //for(int cl = 0; cl < num_pipes; cl++){
+            //    //if(cl != forkid-1 && cl != forkid){
+            //        close(pipes[cl][0]);
+            //        close(pipes[cl][1]);
+            //    //}
             //}
-            
+
+            //if(res_exec == 0) _exit(forkid);
+            res_exec = execvp(args[forkid][0], args[forkid]);
+            _exit(0);
+        } else {
+            int terminated_pid = waitpid(resf, &status, 0);            
 
             if(WIFEXITED(status)) {
                 if(WEXITSTATUS(status) < 255){
                     printf("[PROCESSO PAI   %d] Process %d exited. Found in row %d!\n", getpid(), terminated_pid, WEXITSTATUS(status));
-                    //printf("[PROCESSO PAI   %d] A comecar o prox programa: %p %s \n", getpid(), );
-                }
-                else
-                    printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
-            } else 
-                printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
+                } else printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
+            } else printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
         
-            //close()
         }
     }
-
     return 0;
 }
+
+
+
+
+
 /* 
 $ ./tracer status
 3033 prog-c 10 ms
