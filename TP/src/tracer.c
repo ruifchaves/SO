@@ -154,7 +154,7 @@ int execute_pipeline(char* command){
     //parse dos argumentos
     int arg;
     for(arg = 0; arg < num_progs; arg++){
-        //printf("prog %d: %s\n", arg, prog_args[arg]);
+        printf("prog %d: %s\n", arg, prog_args[arg]);
         char* string = strtok(prog_args[arg], " ");
         num_args = 0;
         while (string != NULL) {
@@ -166,150 +166,84 @@ int execute_pipeline(char* command){
     }
 
     //debug only, 
-    for(int j = 0; j < num_args; j++){
+    for(int j = 0; j < num_progs; j++){
         for(int o = 0; args[j][o] != NULL; o++)
             printf("teste: %s num_progs: %d\n", args[j][o], num_progs);
     }
 
-    return 0;
     //criar num_progs-1 pipes
     int pipes[num_progs-1][2];
-    int num_pipes = num_progs;
-    for(int i = 0; i < num_pipes; i++) pipe(pipes[i]); //eles aqui ja vao abrir todos e o fd já aberto acho
+    int num_pipes = num_progs-1;
+    for(int i = 0; i < num_pipes; i++) {
+        if(pipe(pipes[i]) < 0){ //eles aqui ja vao abrir todos e o fd já aberto acho
+            perror("Error creating pipes");
+            exit(1);
+        }
+    }
 
     //criar estrutura que faz com que saia pela ordem correta
-    int pipeid;
     int pids[num_progs]; //so that it exits in order
     for(int forkid = 0; forkid < num_progs; forkid++){
+        printf("progs_args[0]: %s, args_only: %s\n", args[forkid][0], args[forkid]);
         resf = fork();
         if(resf == 0){
-            close(pipes[num_progs][1]); // filhos vao ler, e enviar a info para o input dos pipes seguintes
+            //fechar pipes não utilizados pelo filho
+            //filhos vao ler apenas
+            //e enviar a info para o input dos pipes seguintes
+            for(int cl = 0; cl < num_pipes; cl++){
+                if(forkid != cl-1 && forkid != cl){
+
+                    close(pipes[cl][0]);
+                    close(pipes[cl][1]);
+                }
+
+            }
             char prev_pipe_in[200];  
             int parent_pipe_in[50]; //receber o numero 
-
             
-            if(forkid > 0) //nao precisa fechar o 
+            //definir pipe de input
+            if(forkid > 0){
                 dup2(pipes[forkid-1][1], 0);//stdin já nao vem do 0 mas sim do pipe do pid anterior
-                dup2(pipes[forkid+1][0], 0);
+                close(pipes[forkid-1][0]);
                 close(pipes[forkid-1][1]);
-                //ficar à espera do sinal para comecar
-                while((res = read(pipes[num_pipes][], &parent_pipe_in, sizeof(int))) != forkid);
-                close(pipes[num_progs][0]); //ja nao vai receber nada do pai
-                //quando passar disto significa que é a vez dele de comecar a trabalhar
-
+            }
+            if(forkid < num_pipes){
+                dup2(pipes[forkid][1], 1);//stdin já nao vem do 0 mas sim do pipe do pid anterior
+                close(pipes[forkid][0]);
+                close(pipes[forkid][1]);
+            }
             //abrir o pipe com o pai? 
             //fazer esperar pela confirmacao do pai para avancar
 
             //testar se é a vez deste filho
             //trocar os fds com o dup
-
-            //res_exec = execvp(prog_args[0], prog_args);
-            close(pipes[forkid][0]);
-            if(res_exec == 0) _exit(forkid);    
-            _exit(255) //se deu erro
+            printf("progs_args[0]: %s, args_only: %s\n", args[forkid][0], args[forkid]);
+            res_exec = execvp(args[forkid][0], args[forkid]);
+            //if(res_exec == 0) _exit(forkid);    
+            _exit(0); //se deu erro
         } else {
-            //criar um pipe para cada filho com o pai????
-            close(pipes[num_progs][0]); //fechar input no pipe do pai
 
-            for(int p = 0; p < num_progs; p++){
-                pid_t terminated_pid = waitpid(pids[p], &status, 0);  //new
-
-                if(WIFEXITED(status)) {
-                    if(WEXITSTATUS(status) < num_progs){
-                        printf("[PROCESSO PAI   %d] Process %d exited. Found in row %d!\n", getpid(), terminated_pid, WEXITSTATUS(status));
-                        printf("[PROCESSO PAI   %d] A comecar o prox programa: %p %s \n", getpid(), );
-                        //enviar a dizer para o prox comecar 
-
-                        write(pipes[], )
-                    } else
-                        printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
-                } else 
-                    printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
+            for (int clp = 0; clp < num_pipes; clp++) {
+                close(pipes[clp][0]);
+                close(pipes[clp][1]);
             }
-
-            if(WIFEXITED(status))
-            for(int p = 0; p < num_progs; p++){
             
-            //era melhor meter por ordem de saida, mas vamos usar um pipe extra para comunicar com o filho
-            pid_t terminated_pid = waitpid(pids[], &status, 0);  //new
-            //pids[pipeid] = resf;
-            write(pipe)
-            
+            //printf("progs_args[0]: %s, args_only:", prog_args[forkid][0]);
 
-            close(pipes[pipeid][1]);
-            
-            //fazer prep e enviar info ao pipe
-            //int query_int = 20;
-            //write(fd_clientServer, &query_int, sizeof(int));
-            //INFORMAR O SERVIDOR
-            // -pid, nome do prog (command), timestamp inicial
-            //write(fd_clientServer, &resf, sizeof(int));
-            //int prog_name_size = strlen(prog_args[0]);
-            //write(fd_clientServer, &prog_name_size, sizeof(int));
-            //write(fd_clientServer, prog_args[0], prog_name_size);
+            int terminated_pid = waitpid(resf, &status, 0);  //new
 
-
-            //gettimeofday(&start, NULL);
-            //write(fd_clientServer, &start, sizeof(struct timeval));
-            //write(1, &start, sizeof(struct timeval));
-            //long long start_ms = (start.tv_sec * 1000LL) + (start.tv_usec / 1000LL);
-            //int start_int = (int)start_ms;
-            //printf("%lld\n", start_ms);
-
-            //INFORMAR O UTILIZADOR
-            //sprintf(outp, "Running PID %d\n", resf);
-            //write(1, &outp, strlen(outp));
-
-
-
-
-            //enviar a dizer que pode comecar atraves de um pipe anonimo??
-
-            //fazer wait e enviar info ao server
-            //if(resf != -1){
-            //    waitpid(resf, &status, 0);
-            //    if(WIFEXITED(status)) {
-            //        res = WEXITSTATUS(status); //adicionar feedback de erro
-            //        gettimeofday(&end, NULL);
-            //        
-            //        long elapsed_seconds = end.tv_sec - start.tv_sec;
-            //        long elapsed_useconds = end.tv_usec - start.tv_usec;
-            //        long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
-//
-            //        //INFORMAR O SERVIDOR
-            //        // -pid, timestamp final
-            //        write(fd_clientServer, &resf, sizeof(int));
-            //        write(fd_clientServer, &end, sizeof(struct timeval));
-            //        //INFORMAR O UTILIZADOR
-            //        sprintf(outp, "Ended in %ld ms\n", elapsed_time); //secs to ms
-            //        write(1, &outp, strlen(outp));
-            //    } else
-            //        res = -1;
-            //} else res = -1;
+            if(WIFEXITED(status)) {
+                if(WEXITSTATUS(status) < 255){
+                    printf("[PROCESSO PAI   %d] Process %d exited. Found in row %d!\n", getpid(), terminated_pid, WEXITSTATUS(status));
+                    //printf("[PROCESSO PAI   %d] A comecar o prox programa: %p %s \n", getpid(), );
+                }
+                else
+                    printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
+            } else 
+                printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
         }
     }
 
-    for(int p = 0; p < num_progs; p++){
-        pid_t terminated_pid = waitpid(pids[p], &status, 0);  //new
-
-        if(WIFEXITED(status)) {
-            if(WEXITSTATUS(status) < 255){
-                printf("[PROCESSO PAI   %d] Process %d exited. Found in row %d!\n", getpid(), terminated_pid, WEXITSTATUS(status));
-                printf("[PROCESSO PAI   %d] A comecar o prox programa: %p %s \n", getpid(), );
-                //enviar a dizer para o prox comecar 
-
-                write(fd_prox filho, )
-            }
-            else
-                printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
-        } else 
-            printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
-    }
-
-    return 0;
-
-    
-    //close(fd_clientServer);
     return 0;
 }
 /* 
@@ -470,7 +404,6 @@ or      ./tracer execute -p \"progA arg1 (...) argN | progB arg1 (...) argN\"\n"
         char* flag = argv[2];
         char* command = argv[3];
         if(strcmp(flag, "-u") == 0) execute_single(command);
-        printf("command: %s\n", command);
         if(strcmp(flag, "-p") == 0) execute_pipeline(command);
     }
     else if(strcmp(query, "status") == 0 && argc == 2) 
