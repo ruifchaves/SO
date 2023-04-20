@@ -166,10 +166,10 @@ int execute_pipeline(char* command){
     }
 
     //debug only, 
-    for(int j = 0; j < num_progs; j++){
-        for(int o = 0; args[j][o] != NULL; o++)
-            printf("teste: %s num_progs: %d\n", args[j][o], num_progs);
-    }
+    //for(int j = 0; j < num_progs; j++){
+    //    for(int o = 0; args[j][o] != NULL; o++)
+    //        printf("args[j][o]: %s args[j]: %s\n", args[j][o], args[j]);
+    //}
 
     //criar num_progs-1 pipes
     int pipes[num_progs-1][2];
@@ -179,20 +179,19 @@ int execute_pipeline(char* command){
             perror("Error creating pipes");
             exit(1);
         }
+
     }
 
     //criar estrutura que faz com que saia pela ordem correta
     int pids[num_progs]; //so that it exits in order
     for(int forkid = 0; forkid < num_progs; forkid++){
-        printf("progs_args[0]: %s, args_only: %s\n", args[forkid][0], args[forkid]);
         resf = fork();
         if(resf == 0){
             //fechar pipes não utilizados pelo filho
             //filhos vao ler apenas
             //e enviar a info para o input dos pipes seguintes
             for(int cl = 0; cl < num_pipes; cl++){
-                if(forkid != cl-1 && forkid != cl){
-
+                if(cl != forkid-1 || cl != forkid){
                     close(pipes[cl][0]);
                     close(pipes[cl][1]);
                 }
@@ -201,6 +200,8 @@ int execute_pipeline(char* command){
             char prev_pipe_in[200];  
             int parent_pipe_in[50]; //receber o numero 
             
+            int backup = dup(1);
+
             //definir pipe de input
             if(forkid > 0){
                 dup2(pipes[forkid-1][1], 0);//stdin já nao vem do 0 mas sim do pipe do pid anterior
@@ -212,24 +213,33 @@ int execute_pipeline(char* command){
                 close(pipes[forkid][0]);
                 close(pipes[forkid][1]);
             }
+
+            //printf("Child process file descriptors:\n");
+            //for (int i = 0; i < getdtablesize(); i++) {
+            //    struct stat statbuf;
+            //    if (fstat(i, &statbuf) == 0) {
+            //        printf("  %d: %s\n", i, S_ISREG(statbuf.st_mode) ? "open" : "closed");
+            //    }
+            //}
+
+            //while((res = read(0, &prev_pipe_in, 200)) > 0)
+            //    write(backup, &prev_pipe_in, 200);
+
             //abrir o pipe com o pai? 
             //fazer esperar pela confirmacao do pai para avancar
 
             //testar se é a vez deste filho
             //trocar os fds com o dup
-            printf("progs_args[0]: %s, args_only: %s\n", args[forkid][0], args[forkid]);
             res_exec = execvp(args[forkid][0], args[forkid]);
             //if(res_exec == 0) _exit(forkid);    
             _exit(0); //se deu erro
         } else {
 
-            for (int clp = 0; clp < num_pipes; clp++) {
-                close(pipes[clp][0]);
-                close(pipes[clp][1]);
-            }
+            //for (int clp = 0; clp < num_pipes; clp++) {
+            //    close(pipes[clp][0]);
+            //    close(pipes[clp][1]);
+            //}
             
-            //printf("progs_args[0]: %s, args_only:", prog_args[forkid][0]);
-
             int terminated_pid = waitpid(resf, &status, 0);  //new
 
             if(WIFEXITED(status)) {
@@ -241,6 +251,8 @@ int execute_pipeline(char* command){
                     printf("[PROCESSO PAI   %d] Process %d exited. Nothing found!\n", getpid(), terminated_pid);
             } else 
                 printf("[PROCESSO PAI   %d] Process %d exited. Something went wrong...\n", getpid(), terminated_pid);
+        
+            //close()
         }
     }
 
