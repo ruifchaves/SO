@@ -46,6 +46,7 @@ int execute_single(char* command){
     
 
     //parse dos argumentos
+    char* command_copy = strdup(command);
     char* string = strtok(command, " ");
     while (string != NULL) {
         exec_args[i] = string;
@@ -68,26 +69,18 @@ int execute_single(char* command){
         //INFORMAR O SERVIDOR
         // -pid, nome do prog (command), timestamp inicial
         write(fd_clientServer, &resf, sizeof(int));
-        int prog_name_size = strlen(exec_args[0]);
+        int prog_name_size = strlen(command_copy);
         write(fd_clientServer, &prog_name_size, sizeof(int));
-        write(fd_clientServer, exec_args[0], prog_name_size);
+        write(fd_clientServer, command_copy, prog_name_size);
 
 
         gettimeofday(&start, NULL);
         write(fd_clientServer, &start, sizeof(struct timeval));
-        //write(1, &start, sizeof(struct timeval));
-        long long start_ms = (start.tv_sec * 1000LL) + (start.tv_usec / 1000LL);
-        int start_int = (int)start_ms;
-        printf("%lld\n", start_ms);
-
+        
         //INFORMAR O UTILIZADOR
         sprintf(outp, "Running PID %d\n", resf);
         write(1, &outp, strlen(outp));
 
-
-
-
-        //enviar a dizer que pode comecar atraves de um pipe anonimo??
 
         //fazer wait e enviar info ao server
         if(resf != -1){
@@ -138,6 +131,8 @@ int execute_pipeline(char* command){
 
 
     //parse dos programas e argumentos
+    char* command_copy = strdup(command);
+
     char* string = strtok(command, "|");
     while (string != NULL) {
         int str_size = strlen(string)-1;
@@ -150,6 +145,7 @@ int execute_pipeline(char* command){
         num_progs++;
     }
     prog_args[num_progs] = NULL;
+
 
     //parse dos argumentos
     for(arg = 0; arg < num_progs; arg++){
@@ -177,9 +173,13 @@ int execute_pipeline(char* command){
         }
     }
 
+    //fazer prep e enviar info ao pipe
+    int query_int = 20;
+    write(fd_clientServer, &query_int, sizeof(int));
+
     int pids[num_progs];
     for(int forkid = 0; forkid < num_progs; forkid++){
-
+        if(forkid == 0) gettimeofday(&start, NULL);
         resf = fork();
         if(resf == 0){
             
@@ -205,8 +205,7 @@ int execute_pipeline(char* command){
             }
 
             res_exec = execvp(args[forkid][0], args[forkid]);
-            //if(res_exec == 0) _exit(forkid);
-            _exit(0);
+            _exit(res_exec);
         } else
             pids[forkid] = resf;
     }
@@ -217,14 +216,38 @@ int execute_pipeline(char* command){
     }
 
 
-    for(int i = 0; i < num_progs; i++) {
+    int exitid;
+    for(exitid = 0; exitid < num_progs; exitid++) {
         int status;
-        waitpid(pids[i], &status, 0);
-        if(WIFEXITED(status)) {
-            printf("Process %d exited with status %d\n", pids[i], WEXITSTATUS(status));
-        } else {
-            printf("Process %d exited abnormally\n", pids[i]);
+        if(exitid == 0){
+            //enviar o primeiro pid
+            write(fd_clientServer, &resf, sizeof(int));
+            int prog_name_size = strlen(command_copy);
+            write(fd_clientServer, &prog_name_size, sizeof(int));
+            write(fd_clientServer, command_copy, prog_name_size);
+            //enviar o timestamp de inicio
+            write(fd_clientServer, &start, sizeof(struct timeval));
+
+            //INFORMAR O UTILIZADOR
+            sprintf(outp, "Running PID %d\n", resf);
+            write(1, &outp, strlen(outp));
         }
+        waitpid(pids[exitid], &status, 0);
+    }
+
+    if(exitid == num_progs){
+        gettimeofday(&end, NULL);
+        long elapsed_seconds = end.tv_sec - start.tv_sec;
+        long elapsed_useconds = end.tv_usec - start.tv_usec;
+        long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+
+        //INFORMAR O SERVIDOR
+        // -pid, timestamp final
+        write(fd_clientServer, &resf, sizeof(int));
+        write(fd_clientServer, &end, sizeof(struct timeval));
+        //INFORMAR O UTILIZADOR
+        sprintf(outp, "Ended in %ld ms\n", elapsed_time); //secs to ms
+        write(1, &outp, strlen(outp));
     }
     
     return 0;

@@ -17,6 +17,7 @@
 int fd_serverClient;
 int llexec_size;
 int llfin_size;
+int request_id = 0;
 
 //definir uma lista ligada para ligar as execucoes atuais
 //ao ter uma lista ligada allows for constant-time insertion and deletion of elements
@@ -215,7 +216,8 @@ int main(int argc, char* agrv[]){
         int query_int;
         while((res_readfifo = read(fd_clientServer, &query_int, sizeof(int))) > 0){
             if(query_int == 10){  //execute_single
-                sprintf(outp, "[REQUEST] New execute request\n");
+                int store_request_id = request_id++;
+                sprintf(outp, "[REQUEST #%d] New execute single request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //collect sent info from new request
@@ -230,7 +232,7 @@ int main(int argc, char* agrv[]){
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE Start] PID %d | Command: %s | Start timeval: %ld\n", pid, prog_name, start_time_ms);
+                sprintf(outp, "[EXECUTE Start] PID %d | Command: \"%s\" | Start timeval: %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, sizeof(char) * strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -253,21 +255,48 @@ int main(int argc, char* agrv[]){
                 close(fd_serverClient);
 
 
-
-
-
-
             } else if(query_int == 20) { //execute_pipeline
-                sprintf(outp, "[REQUEST] New execute request\n");
+                int store_request_id = request_id++;
+                sprintf(outp, "[REQUEST #%d] New execute pipeline request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
-                return 0;
+                //collect sent info from new request
+                int pid;
+                int prog_name_size;
+                struct timeval start_time;
+                read(fd_clientServer, &pid, sizeof(int));
+                read(fd_clientServer, &prog_name_size, sizeof(int));
+                char prog_name[prog_name_size+1];
+                read(fd_clientServer, &prog_name, prog_name_size * sizeof(char));
+                prog_name[prog_name_size] = '\0'; //add null terminator
+                read(fd_clientServer, &start_time, sizeof(struct timeval));
+                
+                long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
+                sprintf(outp, "[EXECUTE Start] PID %d | Command: \"%s\" | Start timeval: %ld\n", pid, prog_name, start_time_ms);
+                write(1, &outp, sizeof(char) * strlen(outp));
 
+                //exec* prog_exec = newExec(pid, prog_name, start_time);
+                add_exec(pid, prog_name, start_time);
 
+                //collect sent info from request end
+                read(fd_clientServer, &pid, sizeof(int));
+                struct timeval end_time;
+                read(fd_clientServer, &end_time, sizeof(struct timeval));
 
+                long end_time_ms = end_time.tv_sec * 1000 + end_time.tv_usec / 1000;
+                long elapsed_seconds = end_time.tv_sec - start_time.tv_sec;
+                long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
+                long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+
+                sprintf(outp, "[EXECUTE End]   PID %d | End timeval: %ld | Total time: %ld ms\n", pid, end_time_ms, elapsed_time);
+                write(1, &outp, strlen(outp));
+
+                remove_exec(pid);
+                close(fd_serverClient);
 
             } else if(query_int == 30) { //status
-                sprintf(outp, "[REQUEST] New status request\n");
+                int store_request_id = request_id++;
+                sprintf(outp, "[REQUEST #%d] New status request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //receber o nome do fifo criado
@@ -315,7 +344,8 @@ int main(int argc, char* agrv[]){
 
 
             } else if(query_int == 40) { //stats_time
-                sprintf(outp, "[REQUEST] New stats_time request\n");
+                int store_request_id = request_id++;
+                sprintf(outp, "[REQUEST #%d] New stats_time request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //receber o nome do fifo criado
@@ -358,11 +388,6 @@ int main(int argc, char* agrv[]){
                     write(fd_serverClient, &tot_size, sizeof(int));
                     write(fd_serverClient, &outp, tot_size);
                 }
-
-
-
-
-
 
             } else if(query_int == 50) { //stats_command
                 sprintf(outp, "[REQUEST] New stats_command request\n");
