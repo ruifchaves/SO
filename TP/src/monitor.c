@@ -66,16 +66,73 @@ exec* add_exec(int pid, char* name, struct timeval start) {
     return new;
 }
 
-void add_finExec(exec* finished){
+void add_finExec(exec* finished, struct timeval end, long elapsed){
     llfin* node = malloc(sizeof(llfin));
     node->exec_info = *finished;
+    node->exec_info.end = end;
+    //node->exec_info.elapse = elapsed;
     node->next = finExecs;
     finExecs = node;
 
     llfin_size++;
 }
 
-void remove_exec(int pid){
+void add_to_file_finished(int pid, char* folder){
+    llfin* current = finExecs;
+
+    char folder_file[100];
+    sprintf(folder_file, "../%s/%d.txt", folder, pid);
+    int open_res = open(folder_file, O_CREAT | O_WRONLY, 0660);
+    if (open_res < 0){
+        perror("Error opening file that stores information of finished execution");
+        exit(-1);
+    }
+
+    int i = 0;
+    for(i=0; current->exec_info.pid != pid && i < llfin_size; i++, current=current->next);
+    if(i == llfin_size){
+        perror("Finished execution not found");
+        exit(-1);
+    } else {
+
+        //escrever a struct e depois cada valor (so thats readable), para poder pesquisar depois
+        write(open_res, &current->exec_info, sizeof(struct exec));
+        char tmp[100];
+        sprintf(tmp, "\n\n");
+        write(open_res, &tmp, strlen(tmp));
+
+
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wformat"
+
+        int pid = current->exec_info.pid;
+        int prog_name_size = strlen(current->exec_info.prog_name);
+        char prog_name[prog_name_size];
+        sprintf(prog_name, "%s", current->exec_info.prog_name);
+        struct timeval start = current->exec_info.start;
+        struct timeval end = current->exec_info.end;
+        sprintf(tmp, "PID: %d\n", pid);
+        write(open_res, &tmp, strlen(tmp));
+        sprintf(tmp, "PROG_NAME: %s\n", prog_name);
+        write(open_res, &tmp, strlen(tmp));
+        sprintf(tmp, "Start Timeval: %ld\n", start);
+        write(open_res, &tmp, strlen(tmp));
+        sprintf(tmp, "End Timeval: %ld\n", end);
+        write(open_res, &tmp, strlen(tmp));
+
+        #pragma GCC diagnostic pop
+        
+        long end_time_ms = end.tv_sec * 1000 + end.tv_usec / 1000;
+        long elapsed_seconds = end.tv_sec - start.tv_sec;
+        long elapsed_useconds = end.tv_usec - start.tv_usec;
+        long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+        sprintf(tmp, "Total Execution time (ms): %ld\n", elapsed_time);
+        write(open_res, &tmp, strlen(tmp));    
+    }
+}
+
+
+void remove_exec(int pid, char* folder, struct timeval end, long elapsed){
     llexec* current = currExecs;
     llexec* previous = NULL;
 
@@ -94,10 +151,12 @@ void remove_exec(int pid){
         previous->next = current->next;
     }
 
-    add_finExec(&current->exec_info);
+    add_finExec(&current->exec_info, end, elapsed);
+    add_to_file_finished(pid, folder);
 
     free(current);
 }
+
 
 void print_llexec() {
     llexec* current = currExecs;
@@ -182,7 +241,7 @@ int search_pid_finishedExecs(int* pids, int pids_size){
 }
 
 
-int main(int argc, char* agrv[]){
+int main(int argc, char* argv[]){
     char fifoname[50];
     int res_createfifo;
     int fd_clientServer;
@@ -191,6 +250,13 @@ int main(int argc, char* agrv[]){
     char outp[200];
     llexec_size = 0;
     llfin_size = 0;
+
+    if(argc != 2){
+        sprintf(outp, "Finished executions folder name not provided or not the correct number of arguments\nPlease try again...\n");
+        write(1, &outp, strlen(outp));
+        exit(-1);
+    }
+    char* folder = argv[1];
 
     //criar pipe para leitura do escrito pelos clientes
     sprintf(fifoname, "../tmp/%s", fifo_cliSer);
@@ -232,7 +298,7 @@ int main(int argc, char* agrv[]){
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE Start] PID %d | Command: \"%s\" | Start timeval: %ld\n", pid, prog_name, start_time_ms);
+                sprintf(outp, "[EXECUTE]     START: PID %d | Command \"%s\" | Start timeval %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, sizeof(char) * strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -248,11 +314,13 @@ int main(int argc, char* agrv[]){
                 long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
                 long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
 
-                sprintf(outp, "[EXECUTE End]   PID %d | End timeval: %ld | Total time: %ld ms\n", pid, end_time_ms, elapsed_time);
+                sprintf(outp, "[EXECUTE]     END:   PID %d | End timeval %ld | Total time %ld ms\n", pid, end_time_ms, elapsed_time);
                 write(1, &outp, strlen(outp));
 
-                remove_exec(pid);
+                remove_exec(pid, folder, end_time, elapsed_time);
                 close(fd_serverClient);
+
+
 
 
             } else if(query_int == 20) { //execute_pipeline
@@ -272,7 +340,7 @@ int main(int argc, char* agrv[]){
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE Start] PID %d | Command: \"%s\" | Start timeval: %ld\n", pid, prog_name, start_time_ms);
+                sprintf(outp, "[EXECUTE]     START: PID %d | Command \"%s\" | Start timeval %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, sizeof(char) * strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -288,11 +356,12 @@ int main(int argc, char* agrv[]){
                 long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
                 long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
 
-                sprintf(outp, "[EXECUTE End]   PID %d | End timeval: %ld | Total time: %ld ms\n", pid, end_time_ms, elapsed_time);
+                sprintf(outp, "[EXECUTE]     END:   PID %d | End timeval %ld | Total time %ld ms\n", pid, end_time_ms, elapsed_time);
                 write(1, &outp, strlen(outp));
 
-                remove_exec(pid);
+                remove_exec(pid, folder, end_time, elapsed_time);
                 close(fd_serverClient);
+
 
             } else if(query_int == 30) { //status
                 int store_request_id = request_id++;
@@ -316,7 +385,7 @@ int main(int argc, char* agrv[]){
                 int sizell = size_llexec();
                 write(fd_serverClient, &sizell, sizeof(int));
                 if(sizell == 0){
-                    sprintf(outp, "[STATUS] That aren't any programs currently running\n");
+                    sprintf(outp, "[STATUS]      That aren't any programs currently running\n");
                     write(1, &outp, strlen(outp));
                 } else {
                     //llexec* tmp = currExecs;
@@ -365,7 +434,7 @@ int main(int argc, char* agrv[]){
                 int sizell = size_llfin();
                 write(fd_serverClient, &sizell, sizeof(int));
                 if(sizell == 0){
-                    sprintf(outp, "[STATS_TIME] That aren't any programs that have already finished\n");
+                    sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
                     write(1, &outp, strlen(outp));
                 } else {
                     //ler pids e pids_size
@@ -390,12 +459,10 @@ int main(int argc, char* agrv[]){
                 }
 
             } else if(query_int == 50) { //stats_command
-                sprintf(outp, "[REQUEST] New stats_command request\n");
-                write(1, &outp, strlen(outp));
+
                 return 0;
             } else if(query_int == 60) { //stats_uniq
-                sprintf(outp, "[REQUEST] New stats_uniq request\n");
-                write(1, &outp, strlen(outp));
+
                 return 0;
             }
         }

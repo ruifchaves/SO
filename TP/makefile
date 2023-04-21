@@ -41,7 +41,7 @@ server: bin/monitor
 client: bin/tracer
 
 folders:
-	@mkdir -p src obj bin tmp
+	@mkdir -p src obj bin tmp finished
 
 bin/monitor: obj/monitor.o
 	$(CC) -g obj/monitor.o -o bin/monitor
@@ -57,3 +57,4 @@ bin/tracer: obj/tracer.o
 
 clean:
 	rm -f obj/* tmp/* bin/{tracer,monitor}
+#não eliminar a pasta finished
