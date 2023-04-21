@@ -211,7 +211,73 @@ int calculate_elapsed_time(struct timeval start, struct timeval end){
 }
 
 
-int search_pid_finishedExecs2(int* pids, int pids_size){
+int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
+    int total_time = 0;
+    int status;
+    char outp[100];
+    char file_in[sizeof(struct exec)];
+
+    //criar os varios pipes
+    int pipes[2];
+    if(pipe(pipes) < 0){
+        perror("Error creating pipes");
+        exit(1);
+    }
+    int back = dup(1);
+
+    int num_times=0;
+    for(int i = 0; i < pids_size; i++){
+        int resf = fork();
+        if(resf == 0){
+            close(pipes[0]);
+
+            int ret;
+            char folder_file[100];
+            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
+            int res_open = open(folder_file, O_RDONLY, 0660);
+            if(res_open < 0){
+                sprintf(outp, "Error opening file %d", pids[i]);
+                perror(outp);
+                return 0;
+                _exit(-1);
+            }
+
+            struct exec file_exec;
+            read(res_open, &file_exec, sizeof(struct exec));
+            char prog_name[100];
+            strcpy(prog_name, file_exec.prog_name);
+            //if (strstr(string1, string2) != NULL) tambem podiamos usar isto
+            //mmas ao testar char a char comparamos logo a partir do primeiro
+
+            printf("prog_name read: %c\n", prog_name[0]);
+            //testar o write com o backup feito em cima
+            printf("command: %c\n", command[0]);
+
+            int flag_equal = 1;
+            for(int ch = 0; ch < strlen(command) && flag_equal; ch++){
+                if(command[ch] == prog_name[ch]) flag_equal = 0;
+            }
+            if(flag_equal) ret = 0;
+            else ret = 1; //significa que command é subset de prog_name
+            write(pipes[1], &ret, sizeof(int));
+
+            close(res_open);
+            close(pipes[1]);
+            _exit(0);
+        } else {
+            close(pipes[1]);
+            int ret;
+            read(pipes[0], &ret, sizeof(int));
+            num_times += ret;
+            close(pipes[0]);
+        }
+    }
+
+    return num_times;
+}
+
+
+int search_pid_finished(int* pids, int pids_size){
 
     int total_time = 0;
     int status;
@@ -250,10 +316,10 @@ int search_pid_finishedExecs2(int* pids, int pids_size){
 
             close(res_open);
             close(pipes[1]);
-            _exit(elapsed_time);
+            _exit(0);
         } else {
             close(pipes[1]);
-            int elapsed, res;
+            int elapsed;
             read(pipes[0], &elapsed, sizeof(int));
             elapsed_total += elapsed;
             close(pipes[0]);
@@ -263,8 +329,7 @@ int search_pid_finishedExecs2(int* pids, int pids_size){
     return elapsed_total;
 }
 
-
-int search_pid_finishedExecs(int* pids, int pids_size){
+/* int search_pid_finishedExecs(int* pids, int pids_size){
 
     for(int i = 0; i < pids_size; i++) printf("pids[i] %d\n", pids[i]);
     llfin* current = finExecs;
@@ -297,7 +362,7 @@ int search_pid_finishedExecs(int* pids, int pids_size){
     }
 
     return total_time;
-}
+} */
 
 
 int main(int argc, char* argv[]){
@@ -352,13 +417,13 @@ int main(int argc, char* argv[]){
                 read(fd_clientServer, &pid, sizeof(int));
                 read(fd_clientServer, &prog_name_size, sizeof(int));
                 char prog_name[prog_name_size+1];
-                read(fd_clientServer, &prog_name, prog_name_size * sizeof(char));
+                read(fd_clientServer, &prog_name, prog_name_size);
                 prog_name[prog_name_size] = '\0'; //add null terminator
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
                 sprintf(outp, "[EXECUTE]     START: PID %d | Command \"%s\" | Start timeval %ld\n", pid, prog_name, start_time_ms);
-                write(1, &outp, sizeof(char) * strlen(outp));
+                write(1, &outp, strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
                 add_exec(pid, prog_name, start_time);
@@ -394,13 +459,13 @@ int main(int argc, char* argv[]){
                 read(fd_clientServer, &pid, sizeof(int));
                 read(fd_clientServer, &prog_name_size, sizeof(int));
                 char prog_name[prog_name_size+1];
-                read(fd_clientServer, &prog_name, prog_name_size * sizeof(char));
+                read(fd_clientServer, &prog_name, prog_name_size);
                 prog_name[prog_name_size] = '\0'; //add null terminator
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
                 sprintf(outp, "[EXECUTE]     START: PID %d | Command \"%s\" | Start timeval %ld\n", pid, prog_name, start_time_ms);
-                write(1, &outp, sizeof(char) * strlen(outp));
+                write(1, &outp, strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
                 add_exec(pid, prog_name, start_time);
@@ -508,7 +573,7 @@ int main(int argc, char* argv[]){
                     }
                     
                     //calcular tempo total
-                    int total_time = search_pid_finishedExecs2(pids, pids_size);
+                    int total_time = search_pid_finished(pids, pids_size);
 
                     //enviar string de output
                     sprintf(outp, "Total execution time is %d ms\n", total_time);
@@ -517,9 +582,49 @@ int main(int argc, char* argv[]){
                     write(fd_serverClient, &outp, tot_size);
                 //}
 
-            } else if(query_int == 50) { //stats_command
+            } else if(query_int == 50) { //stats-command
+                int store_request_id = request_id++;
+                sprintf(outp, "[REQUEST #%d] New stats-command request\n", store_request_id);
+                write(1, &outp, strlen(outp));
 
-                return 0;
+                //receber o nome do fifo criado
+                int fifo_name_size;
+                read(fd_clientServer, &fifo_name_size, sizeof(int));
+                char fifo_name[fifo_name_size];
+                read(fd_clientServer, &fifo_name, fifo_name_size);
+
+                //abrir o fifo entre servidor e cliente
+                fd_serverClient = open(fifo_name, O_WRONLY);                    
+                if(fd_serverClient == -1){
+                    perror("Error opening Server->Client pipe to write");
+                    exit(-1);
+                }
+
+                //ler nome do programa
+                int command_size;
+                read(fd_clientServer, &command_size, sizeof(int));
+                char command[command_size];
+                read(fd_clientServer, &command, command_size);
+
+                //ler pids e pids_size
+                int pids_size;
+                read(fd_clientServer, &pids_size, sizeof(int));
+                int pids[pids_size];
+                for(int i = 0; i < pids_size; i++){
+                    int tmp;
+                    read(fd_clientServer, &tmp, sizeof(int));
+                    pids[i] = tmp;
+                }
+                
+                //calcular tempo total
+                int total_execs_prog = search_pid_and_prog_finished(pids, pids_size, command);
+
+                //enviar string de output
+                sprintf(outp, "Prog was executed %d times\n", total_execs_prog);
+                int tot_size = strlen(outp);
+                write(fd_serverClient, &tot_size, sizeof(int));
+                write(fd_serverClient, &outp, tot_size);
+
             } else if(query_int == 60) { //stats_uniq
 
                 return 0;
