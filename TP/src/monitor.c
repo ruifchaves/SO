@@ -13,6 +13,7 @@
 
 #define fifo_cliSer "fifo_client_server"
 #define fifo_serCli "fifo_server_client"
+#define fin_dir "../finished/"
 
 int fd_serverClient;
 int llexec_size;
@@ -81,7 +82,7 @@ void add_to_file_finished(int pid, char* folder){
     llfin* current = finExecs;
 
     char folder_file[100];
-    sprintf(folder_file, "../%s/%d.txt", folder, pid);
+    sprintf(folder_file, "%s%d.txt", fin_dir, pid);
     int open_res = open(folder_file, O_CREAT | O_WRONLY, 0660);
     if (open_res < 0){
         perror("Error opening file that stores information of finished execution");
@@ -202,7 +203,65 @@ int size_llfin(){
     return i;
 }
 
+int calculate_elapsed_time(struct timeval start, struct timeval end){
+    long elapsed_seconds = end.tv_sec - start.tv_sec;
+    long elapsed_useconds = end.tv_usec - start.tv_usec;
+    long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+    return elapsed_time;
+}
 
+
+int search_pid_finishedExecs2(int* pids, int pids_size){
+
+    int total_time = 0;
+    int status;
+    char outp[100];
+    char file_in[sizeof(struct exec)];
+
+    //criar os varios pipes
+    int pipes[2];
+    if(pipe(pipes) < 0){
+        perror("Error creating pipes");
+        exit(1);
+    }
+
+    int elapsed_total=0;
+    for(int i = 0; i < pids_size; i++){
+        int resf = fork();
+        if(resf == 0){
+            close(pipes[0]);
+
+            char folder_file[100];
+            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
+            int res_open = open(folder_file, O_RDONLY, 0660);
+            if(res_open < 0){
+                sprintf(outp, "Error opening file %d", pids[i]);
+                perror(outp);
+                _exit(-1);
+            }
+
+            struct exec file_exec;
+            read(res_open, &file_exec, sizeof(struct exec));
+            struct timeval start =  file_exec.start;
+            struct timeval end =  file_exec.end;
+
+            int elapsed_time = calculate_elapsed_time(start, end);
+            write(pipes[1], &elapsed_time, sizeof(int));
+
+            close(res_open);
+            close(pipes[1]);
+            _exit(elapsed_time);
+        } else {
+            close(pipes[1]);
+            int elapsed, res;
+            read(pipes[0], &elapsed, sizeof(int));
+            elapsed_total += elapsed;
+            close(pipes[0]);
+        }
+    }
+
+    return elapsed_total;
+}
 
 
 int search_pid_finishedExecs(int* pids, int pids_size){
@@ -412,9 +471,9 @@ int main(int argc, char* argv[]){
 
 
 
-            } else if(query_int == 40) { //stats_time
+            } else if(query_int == 40) { //stats-time
                 int store_request_id = request_id++;
-                sprintf(outp, "[REQUEST #%d] New stats_time request\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d] New stats-time request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //receber o nome do fifo criado
@@ -429,14 +488,14 @@ int main(int argc, char* argv[]){
                     perror("Error opening Server->Client pipe to write");
                     exit(-1);
                 }
-
+                
                 //verificar se há algum programa que já acabou
-                int sizell = size_llfin();
-                write(fd_serverClient, &sizell, sizeof(int));
-                if(sizell == 0){
-                    sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
-                    write(1, &outp, strlen(outp));
-                } else {
+                //int sizell = size_llfin();
+                //write(fd_serverClient, &sizell, sizeof(int));
+                //if(sizell == 0){
+                //    sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
+                //    write(1, &outp, strlen(outp));
+                //} else {
                     //ler pids e pids_size
                     int pids_size;
                     read(fd_clientServer, &pids_size, sizeof(int));
@@ -449,14 +508,14 @@ int main(int argc, char* argv[]){
                     }
                     
                     //calcular tempo total
-                    int total_time = search_pid_finishedExecs(pids, pids_size);
+                    int total_time = search_pid_finishedExecs2(pids, pids_size);
 
                     //enviar string de output
-                    //sprintf(outp, "Total execution time is %f ms\n", cpu_time_used);
+                    sprintf(outp, "Total execution time is %d ms\n", total_time);
                     int tot_size = strlen(outp);
                     write(fd_serverClient, &tot_size, sizeof(int));
                     write(fd_serverClient, &outp, tot_size);
-                }
+                //}
 
             } else if(query_int == 50) { //stats_command
 

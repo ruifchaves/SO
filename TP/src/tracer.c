@@ -323,16 +323,16 @@ int stats_time(int* pids, int pids_size){
     }
 
     int sizell;
-    read(fd_serverClient, &sizell, sizeof(int));
-    if(sizell == 0){
-        sprintf(outp, "That aren't any programs that have already finished\n");
-        write(1, &outp, strlen(outp));
-        exit(0);
+    //read(fd_serverClient, &sizell, sizeof(int));
+    //if(sizell == 0){
+    //    sprintf(outp, "That aren't any programs that have already finished\n");
+    //    write(1, &outp, strlen(outp));
+    //    exit(0);
 /*     } else if(sizell < pids_size){
         sprintf(outp, "There haven't been as many programs that finished as your arguments\n");
         write(1, &outp, strlen(outp));
         exit(0); */
-    } else {
+    //} else {
         //enviar pids e pids_size
         write(fd_clientServer, &pids_size, sizeof(int));
         for(int i = 0; i < pids_size; i++)
@@ -344,7 +344,7 @@ int stats_time(int* pids, int pids_size){
         char str[tot_size];
         read(fd_serverClient, &str, tot_size);
         write(1, &str, tot_size);
-    }
+    //}
 
     return 0;
 }
