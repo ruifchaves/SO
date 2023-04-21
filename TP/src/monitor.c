@@ -305,7 +305,7 @@ int main(int argc, char* agrv[]){
                 char fifo_name[fifo_name_size];
                 read(fd_clientServer, &fifo_name, fifo_name_size);
 
-                ////abrir o fifo entre servidor e cliente
+                //abrir o fifo entre servidor e cliente
                 fd_serverClient = open(fifo_name, O_WRONLY);
                 if(fd_serverClient == -1){
                     perror("Error opening Server->Client pipe to write");
@@ -319,7 +319,7 @@ int main(int argc, char* agrv[]){
                     sprintf(outp, "[STATUS] That aren't any programs currently running\n");
                     write(1, &outp, strlen(outp));
                 } else {
-                    llexec* tmp = currExecs;
+                    //llexec* tmp = currExecs;
                     for(llexec* tmp = currExecs; tmp != NULL; tmp=tmp->next){
                         struct timeval til_now;
                         gettimeofday(&til_now, NULL);
@@ -329,7 +329,7 @@ int main(int argc, char* agrv[]){
                         long elapsed_useconds = til_now.tv_usec - start.tv_usec;
                         long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);   
 
-                        sprintf(outp, "%d %s %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, elapsed_time);
+                        sprintf(outp, "%d   %s   %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, elapsed_time);
                         int exec_size = strlen(outp);
                         write(fd_serverClient, &exec_size, sizeof(int));
                         write(fd_serverClient, &outp, exec_size);
