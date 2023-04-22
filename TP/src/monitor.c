@@ -13,12 +13,12 @@
 
 #define fifo_cliSer "fifo_client_server"
 #define fifo_serCli "fifo_server_client"
-#define fin_dir "../finished/"
 
 int fd_serverClient;
 int llexec_size;
 int llfin_size;
 int request_id = 0;
+char fin_dir[50];
 
 //definir uma lista ligada para ligar as execucoes atuais
 //ao ter uma lista ligada allows for constant-time insertion and deletion of elements
@@ -239,26 +239,30 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
             strcpy(prog_name, file_exec.prog_name);
             close(res_open);
 
-            //char* prog_name_noargs = strtok(prog_name, " ");
-            //if (strstr(string1, string2) != NULL) tambem podiamos usar isto
-            //mmas ao testar char a char comparamos logo a partir do primeiro
+            char* prog_name_noargs = strtok(prog_name, " ");
 
             sleep(1);
-            int flag_equal = 1, ch;
-            for(ch = 0; ch < strlen(command) && flag_equal; ch++){ //strlen(command)-1 because it includes \0
-                if(command[ch] != prog_name[ch]) flag_equal = 0;
-            }
-            
+            int flag_equal = 1, ch, bigger_prog_name;
+            if (strcmp(command, prog_name_noargs) != 0) flag_equal = 0;
+            //printf("%d %d\n", strlen(prog_name_noargs), strlen(command));
+            //bigger_prog_name = (strlen(prog_name_noargs) >= strlen(command)) ? strlen(prog_name_noargs) : strlen(command);
+            //for(ch = 0; ch < bigger_prog_name && flag_equal; ch++){ //strlen(command)-1 because it includes \0
+            //    if(command[ch] != prog_name_noargs[ch]) flag_equal = 0;
+            //    printf("%c == %c\n", command[ch], prog_name_noargs[ch]);
+            //}
+            _exit(flag_equal);
             if(flag_equal == 0) _exit(0);
             else _exit(1);
 
-        } else {
-            //waitpid(resf, &status, 0); // Wait for the child process to finish
-            wait(&status);
-            printf("pai aux: %d\n", WEXITSTATUS(status));
-            num_times += WEXITSTATUS(status);
-            printf("num_times: %d\n", num_times);
         }
+    }
+        
+    for(int i = 0; i < pids_size; i++){
+        //waitpid(resf, &status, 0); // Wait for the child process to finish
+        wait(&status);
+        printf("pai aux: %d\n", WEXITSTATUS(status));
+        num_times += WEXITSTATUS(status);
+        printf("num_times: %d\n", num_times);
     }
 
     return num_times;
@@ -382,6 +386,8 @@ int main(int argc, char* argv[]){
 
     currExecs = init_llexec();
     finExecs = init_llfin();
+    sprintf(fin_dir, "../%s/", folder);
+    write(1, &fin_dir, strlen(fin_dir));
     while(1){
         //Abrir o pipe criado
         fd_clientServer = open(fifoname, O_RDONLY);
