@@ -223,7 +223,6 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
         perror("Error creating pipes");
         exit(1);
     }
-    int back = dup(1);
 
     int num_times=0;
     for(int i = 0; i < pids_size; i++){
@@ -238,7 +237,8 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
             if(res_open < 0){
                 sprintf(outp, "Error opening file %d", pids[i]);
                 perror(outp);
-                return 0;
+                int aux = 0;
+                write(pipes[1], &aux, sizeof(int));
                 _exit(-1);
             }
 
@@ -249,26 +249,29 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
             //if (strstr(string1, string2) != NULL) tambem podiamos usar isto
             //mmas ao testar char a char comparamos logo a partir do primeiro
 
-            printf("prog_name read: %c\n", prog_name[0]);
-            //testar o write com o backup feito em cima
-            printf("command: %c\n", command[0]);
-
-            int flag_equal = 1;
-            for(int ch = 0; ch < strlen(command) && flag_equal; ch++){
-                if(command[ch] == prog_name[ch]) flag_equal = 0;
-            }
-            if(flag_equal) ret = 0;
-            else ret = 1; //significa que command é subset de prog_name
-            write(pipes[1], &ret, sizeof(int));
+            int flag_equal = 1, ch;
+            for(ch = 0; ch < strlen(command)-1 && flag_equal; ch++){ //strlen(command)-1 because it includes \0
+                if(command[ch] != prog_name[ch]) flag_equal = 0;
+                printf("ch %d. flag: %d. %c == %c?\n", ch, flag_equal, command[ch], prog_name[ch]);
+                }
+            if(flag_equal == 0) ret = 0;
+            else if(ch == strlen(command)-1) ret = 1; //significa que command é subset de prog_name
+            printf("ret: %d\n", ret);
+            if(ret == 1) write(pipes[1], &ret, sizeof(int));
+            printf("ret: %d\n", ret);
 
             close(res_open);
             close(pipes[1]);
             _exit(0);
         } else {
+            int aux;
             close(pipes[1]);
-            int ret;
-            read(pipes[0], &ret, sizeof(int));
-            num_times += ret;
+            //waitpid(resf, &status, 0); // Wait for the child process to finish
+            wait(&status);
+            read(pipes[0], &aux, sizeof(int));
+            printf("pai aux: %d\n", aux);
+            num_times += aux;
+            printf("num_times: %d\n", num_times);
             close(pipes[0]);
         }
     }
@@ -602,10 +605,15 @@ int main(int argc, char* argv[]){
 
                 //ler nome do programa
                 int command_size;
+
                 read(fd_clientServer, &command_size, sizeof(int));
                 char command[command_size];
                 read(fd_clientServer, &command, command_size);
 
+                //these two have different values
+                printf("strlen(Command) %d\n", strlen(command));
+                printf("command_size %d\n", command_size);
+                
                 //ler pids e pids_size
                 int pids_size;
                 read(fd_clientServer, &pids_size, sizeof(int));
