@@ -407,8 +407,9 @@ int stats_command(char *command, int *pids, int pids_size)
 
     //enviar nome do programa
     int command_size = strlen(command);
+    command[command_size] = '\0';
     write(fd_clientServer, &command_size, sizeof(int));
-    write(fd_clientServer, command, command_size);
+    write(fd_clientServer, command, command_size+1);
     // enviar pids e pids_size
     write(fd_clientServer, &pids_size, sizeof(int));
     for (int i = 0; i < pids_size; i++)

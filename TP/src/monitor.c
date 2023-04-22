@@ -217,62 +217,47 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
     char outp[100];
     char file_in[sizeof(struct exec)];
 
-    //criar os varios pipes
-    int pipes[2];
-    if(pipe(pipes) < 0){
-        perror("Error creating pipes");
-        exit(1);
-    }
-
     int num_times=0;
     for(int i = 0; i < pids_size; i++){
         int resf = fork();
         if(resf == 0){
-            close(pipes[0]);
 
             int ret;
             char folder_file[100];
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
             int res_open = open(folder_file, O_RDONLY, 0660);
             if(res_open < 0){
-                sprintf(outp, "Error opening file %d", pids[i]);
+                sprintf(outp, "Error opening finished execution file  %d", pids[i]);
                 perror(outp);
                 int aux = 0;
-                write(pipes[1], &aux, sizeof(int));
-                _exit(-1);
+                _exit(0);
             }
 
             struct exec file_exec;
             read(res_open, &file_exec, sizeof(struct exec));
             char prog_name[100];
             strcpy(prog_name, file_exec.prog_name);
+            close(res_open);
+
+            //char* prog_name_noargs = strtok(prog_name, " ");
             //if (strstr(string1, string2) != NULL) tambem podiamos usar isto
             //mmas ao testar char a char comparamos logo a partir do primeiro
 
+            sleep(1);
             int flag_equal = 1, ch;
-            for(ch = 0; ch < strlen(command)-1 && flag_equal; ch++){ //strlen(command)-1 because it includes \0
+            for(ch = 0; ch < strlen(command) && flag_equal; ch++){ //strlen(command)-1 because it includes \0
                 if(command[ch] != prog_name[ch]) flag_equal = 0;
-                printf("ch %d. flag: %d. %c == %c?\n", ch, flag_equal, command[ch], prog_name[ch]);
-                }
-            if(flag_equal == 0) ret = 0;
-            else if(ch == strlen(command)-1) ret = 1; //significa que command é subset de prog_name
-            printf("ret: %d\n", ret);
-            if(ret == 1) write(pipes[1], &ret, sizeof(int));
-            printf("ret: %d\n", ret);
+            }
+            
+            if(flag_equal == 0) _exit(0);
+            else _exit(1);
 
-            close(res_open);
-            close(pipes[1]);
-            _exit(0);
         } else {
-            int aux;
-            close(pipes[1]);
             //waitpid(resf, &status, 0); // Wait for the child process to finish
             wait(&status);
-            read(pipes[0], &aux, sizeof(int));
-            printf("pai aux: %d\n", aux);
-            num_times += aux;
+            printf("pai aux: %d\n", WEXITSTATUS(status));
+            num_times += WEXITSTATUS(status);
             printf("num_times: %d\n", num_times);
-            close(pipes[0]);
         }
     }
 
@@ -565,25 +550,28 @@ int main(int argc, char* argv[]){
                 //    write(1, &outp, strlen(outp));
                 //} else {
                     //ler pids e pids_size
-                    int pids_size;
-                    read(fd_clientServer, &pids_size, sizeof(int));
-                    int pids[pids_size];
-                    for(int i = 0; i < pids_size; i++){
-                        int tmp;
-                        read(fd_clientServer, &tmp, sizeof(int));
-                        pids[i] = tmp;
-                        //printf("pids received: %d\n", pids[i]);
-                    }
-                    
-                    //calcular tempo total
-                    int total_time = search_pid_finished(pids, pids_size);
+                int pids_size;
+                read(fd_clientServer, &pids_size, sizeof(int));
+                int pids[pids_size];
+                for(int i = 0; i < pids_size; i++){
+                    int tmp;
+                    read(fd_clientServer, &tmp, sizeof(int));
+                    pids[i] = tmp;
+                    //printf("pids received: %d\n", pids[i]);
+                }
+                
+                //calcular tempo total
+                int total_time = search_pid_finished(pids, pids_size);
 
-                    //enviar string de output
-                    sprintf(outp, "Total execution time is %d ms\n", total_time);
-                    int tot_size = strlen(outp);
-                    write(fd_serverClient, &tot_size, sizeof(int));
-                    write(fd_serverClient, &outp, tot_size);
+                //enviar string de output
+                sprintf(outp, "Total execution time is %d ms\n", total_time);
+                int tot_size = strlen(outp);
+                write(fd_serverClient, &tot_size, sizeof(int));
+                write(fd_serverClient, &outp, tot_size);
                 //}
+
+                sprintf(outp, "[REQUEST #%d] Ended stats-time\n", store_request_id);
+                write(1, &outp, strlen(outp));
 
             } else if(query_int == 50) { //stats-command
                 int store_request_id = request_id++;
@@ -605,14 +593,9 @@ int main(int argc, char* argv[]){
 
                 //ler nome do programa
                 int command_size;
-
                 read(fd_clientServer, &command_size, sizeof(int));
                 char command[command_size];
-                read(fd_clientServer, &command, command_size);
-
-                //these two have different values
-                printf("strlen(Command) %d\n", strlen(command));
-                printf("command_size %d\n", command_size);
+                read(fd_clientServer, &command, command_size+1);
                 
                 //ler pids e pids_size
                 int pids_size;
@@ -632,9 +615,17 @@ int main(int argc, char* argv[]){
                 int tot_size = strlen(outp);
                 write(fd_serverClient, &tot_size, sizeof(int));
                 write(fd_serverClient, &outp, tot_size);
+                
+                sprintf(outp, "[REQUEST #%d] Ended stats-command\n", store_request_id);
+                write(1, &outp, strlen(outp));
 
             } else if(query_int == 60) { //stats_uniq
+                int store_request_id = request_id++;
+                sprintf(outp, "[REQUEST #%d] New stats-uniq request\n", store_request_id);
+                write(1, &outp, strlen(outp));
 
+                sprintf(outp, "[REQUEST #%d] Ended stats-uniq\n", store_request_id);
+                write(1, &outp, strlen(outp));
                 return 0;
             }
         }
