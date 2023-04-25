@@ -6,7 +6,6 @@
 #include <errno.h>      //errno
 #include <stdlib.h>     //exit
 #include <string.h>     //strlen, strcmp
-#include <time.h>       //clock_t, clock
 #include <sys/time.h>   //gettimeofday
 #include <sys/wait.h>   //wait
 
@@ -173,6 +172,7 @@ void print_llexec() {
     }
 }
 
+//TODO to be removed!
 void print_llfin() {
     llfin* current = finExecs;
     int i = 1;
@@ -211,6 +211,11 @@ int calculate_elapsed_time(struct timeval start, struct timeval end){
 }
 
 
+
+
+
+
+//! STATS-TIME
 int search_pid_finished(int* pids, int pids_size){
     int total_time = 0;
     int status;
@@ -228,11 +233,12 @@ int search_pid_finished(int* pids, int pids_size){
     int elapsed_total=0;
     for (int i = 0; i < pids_size; i++) {
         int resf = fork();
-         if (resf == -1) {
+        if (resf == -1) {
             sprintf(outp, "Error in fork #%d", i+1);
             perror(outp);
             return -1;
-        } else if (resf == 0){
+        }
+        else if (resf == 0){
             close(pipes[0]);
 
             char folder_file[100];
@@ -269,6 +275,7 @@ int search_pid_finished(int* pids, int pids_size){
     return elapsed_total;
 }
 
+//! STATS-COMMAND
 int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
     int total_time = 0;
     int status;
@@ -285,7 +292,6 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
             perror(outp);
             return -1;
         } 
-        
         else if(resf == 0){
             int ret;
             char folder_file[100];
@@ -338,6 +344,8 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
 }
 
 
+//! STATS-UNIQ
+//TODO to be removed
 int search_uniq_finished(int* pids, int pids_size){
     int total_time = 0;
     int status;
@@ -468,7 +476,7 @@ int search_uniq_finished2(int *pids, int pids_size) { //concurrent
         }
     }
 
-    // Esperar que todos os processos filhos terminem
+    // Esperar que todos os processos filho terminem
     for (int i = 0; i < pids_size; i++) {
         if (wait(&status) == -1) {
             sprintf(outp, "Error in waiting for child #%d", i+1);
@@ -514,8 +522,8 @@ int main(int argc, char* argv[]){
     llexec_size = 0;
     llfin_size = 0;
 
-    if (argc != 2) {
-        sprintf(outp, "Finished executions folder name not provided or not the correct number of arguments\nPlease try again...\n");
+    if (argc != 2 && argc == 1) {
+        sprintf(outp, "Finished executions folder name not provided\nPlease try again...\n");
         write(1, &outp, strlen(outp));
         exit(-1);
     }
@@ -531,10 +539,14 @@ int main(int argc, char* argv[]){
         }
     }
 
+    // Inicializar as structs & guardar nome da pasta de execuções terminadas em var global
     currExecs = init_llexec();
     finExecs = init_llfin();
     sprintf(fin_dir, "../%s/", folder);
+
+    // Ciclo infinito //TODO adicionar um signal?
     while(1){
+
         // Abrir o pipe criado
         fd_clientServer = open(fifoname, O_RDONLY);
         if(fd_clientServer == -1){
@@ -545,9 +557,11 @@ int main(int argc, char* argv[]){
         // Pipe opened
         int query_int;
         while((res_readfifo = read(fd_clientServer, &query_int, sizeof(int))) > 0){
-            if(query_int == 10){  //execute_single
+
+            //! EXECUTE SINGLE
+            if(query_int == 1){
                 int store_request_id = request_id++;
-                sprintf(outp, "[REQUEST #%d] New execute single request\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  New execute single request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //collect sent info from new request
@@ -585,11 +599,12 @@ int main(int argc, char* argv[]){
                 close(fd_serverClient);
 
 
+            
 
-
-            } else if(query_int == 20) { //execute_pipeline
+            //! EXECUTE PIPELINE
+            } else if(query_int == 2) {
                 int store_request_id = request_id++;
-                sprintf(outp, "[REQUEST #%d] New execute pipeline request\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  New execute pipeline request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //collect sent info from new request
@@ -627,9 +642,10 @@ int main(int argc, char* argv[]){
                 close(fd_serverClient);
 
 
-            } else if(query_int == 30) { //status
+            //! STATUS
+            } else if(query_int == 3) {
                 int store_request_id = request_id++;
-                sprintf(outp, "[REQUEST #%d] New status request\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  New status request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //receber o nome do fifo criado
@@ -673,12 +689,10 @@ int main(int argc, char* argv[]){
                 print_llfin();  //debug
 
 
-
-
-
-            } else if(query_int == 40) { //stats-time
+            //! STATS-TIME
+            } else if(query_int == 4) {
                 int store_request_id = request_id++;
-                sprintf(outp, "[REQUEST #%d] New stats-time request\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  New stats-time request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //receber o nome do fifo criado
@@ -722,12 +736,14 @@ int main(int argc, char* argv[]){
                 write(fd_serverClient, &outp, tot_size);
                 //}
 
-                sprintf(outp, "[REQUEST #%d] Ended stats-time\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  Ended stats-time\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
-            } else if(query_int == 50) { //stats-command
+
+            //! STATS-COMMAND
+            } else if(query_int == 5) {
                 int store_request_id = request_id++;
-                sprintf(outp, "[REQUEST #%d] New stats-command request\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  New stats-command request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //receber o nome do fifo criado
@@ -768,12 +784,14 @@ int main(int argc, char* argv[]){
                 write(fd_serverClient, &tot_size, sizeof(int));
                 write(fd_serverClient, &outp, tot_size);
                 
-                sprintf(outp, "[REQUEST #%d] Ended stats-command\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  Ended stats-command\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
-            } else if(query_int == 60) { //stats_uniq
+
+            //! STATS-UNIQ
+            } else if(query_int == 6) {
                 int store_request_id = request_id++;
-                sprintf(outp, "[REQUEST #%d] New stats-uniq request\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  New stats-uniq request\n", store_request_id);
                 write(1, &outp, strlen(outp));
 
                 //receber o nome do fifo criado
@@ -816,7 +834,7 @@ int main(int argc, char* argv[]){
                 write(fd_serverClient, &outp, tot_size);
                 //}
 
-                sprintf(outp, "[REQUEST #%d] Ended stats-uniq\n", store_request_id);
+                sprintf(outp, "[REQUEST #%d]  Ended stats-uniq\n", store_request_id);
                 write(1, &outp, strlen(outp));
                 return 0;
             }
