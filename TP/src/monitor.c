@@ -247,6 +247,9 @@ int search_pid_finished(int* pids, int pids_size){
             if(res_open < 0){
                 sprintf(outp, "Error opening file %d", pids[i]);
                 perror(outp);
+                int error_add_zero = 0;
+                write(pipes[1], &error_add_zero, sizeof(int));
+                close(pipes[1]);
                 _exit(-1);
             }
 
@@ -262,14 +265,17 @@ int search_pid_finished(int* pids, int pids_size){
             close(pipes[1]);
             _exit(0);
 
-        } else {
-            close(pipes[1]);
-            int elapsed;
-            read(pipes[0], &elapsed, sizeof(int));
-            elapsed_total += elapsed;
-            close(pipes[0]);
         }
     }
+
+    // Esperar que todos os processos filho terminem
+    for (int i = 0; i < pids_size; i++) {
+        close(pipes[1]);
+        int elapsed;
+        read(pipes[0], &elapsed, sizeof(int));
+        elapsed_total += elapsed;
+    }
+    close(pipes[0]);
 
     // Retornar tempo total em ms
     return elapsed_total;
@@ -316,7 +322,7 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
 
             char* prog_name_noargs = strtok(prog_name, " ");
 
-            sleep(1);
+            sleep(3);
             int flag_equal = 1, ch, bigger_prog_name;
             if (strcmp(command, prog_name_noargs) != 0) flag_equal = 0;
             _exit(flag_equal);
@@ -326,7 +332,7 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
         }
     }
     
-    // Esperar que todos os processos filhos terminem
+    // Esperar que todos os processos filho terminem
     for(int i = 0; i < pids_size; i++){
         //waitpid(resf, &status, 0);
         if (wait(&status) == -1) {
@@ -503,7 +509,7 @@ int main(int argc, char* argv[]){
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE]     START: PID %d | Command \"%s\" | Start timeval %ld\n", pid, prog_name, start_time_ms);
+                sprintf(outp, "[EXECUTE]     START: PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -519,7 +525,7 @@ int main(int argc, char* argv[]){
                 long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
                 long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
 
-                sprintf(outp, "[EXECUTE]     END:   PID %d | End timeval %ld | Total time %ld ms\n", pid, end_time_ms, elapsed_time);
+                sprintf(outp, "[EXECUTE]     END:   PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
                 write(1, &outp, strlen(outp));
 
                 remove_exec(pid, folder, end_time, elapsed_time);
@@ -546,7 +552,7 @@ int main(int argc, char* argv[]){
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE]     START: PID %d | Command \"%s\" | Start timeval %ld\n", pid, prog_name, start_time_ms);
+                sprintf(outp, "[EXECUTE]     START: PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -562,7 +568,7 @@ int main(int argc, char* argv[]){
                 long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
                 long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
 
-                sprintf(outp, "[EXECUTE]     END:   PID %d | End timeval %ld | Total time %ld ms\n", pid, end_time_ms, elapsed_time);
+                sprintf(outp, "[EXECUTE]     END:   PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
                 write(1, &outp, strlen(outp));
 
                 remove_exec(pid, folder, end_time, elapsed_time);
@@ -706,7 +712,7 @@ int main(int argc, char* argv[]){
                 int total_execs_prog = search_pid_and_prog_finished(pids, pids_size, command);
 
                 //enviar string de output
-                sprintf(outp, "Prog was executed %d times\n", total_execs_prog);
+                sprintf(outp, "%s was executed %d times\n", command, total_execs_prog);
                 int tot_size = strlen(outp);
                 write(fd_serverClient, &tot_size, sizeof(int));
                 write(fd_serverClient, &outp, tot_size);

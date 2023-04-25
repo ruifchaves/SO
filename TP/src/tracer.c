@@ -498,25 +498,9 @@ int main(int argc, char *argv[]) {
     if (createFIFO() != 0)
         exit(-1);
     
-    // Verificação dos argumentos
-    if (argc == 1) {
-        sprintf(outp, "Invalid tracer request. Please try again...\n");
-        write(1, outp, sizeof(char) * strlen(outp));
-        exit(-1);
-    }
-
+    // Redirecionamento consoante argumentos
     char *query = argv[1];
-    if (strcmp(query, "execute") == 0 && argc >= 2) {
-        if (argc == 3 || argc == 2) {
-            sprintf(outp,
-                    "Invalid tracer request. Please try again...\n\
-Usage:\n\
-        ./tracer execute -u \"prog arg1 (...) argN\"\n\
-or      ./tracer execute -p \"progA arg1 (...) argN | progB arg1 (...) argN\"\n");
-            write(1, outp, sizeof(char) * strlen(outp));
-            exit(-1);
-        }
-
+    if (strcmp(query, "execute") == 0 && argc >= 4) {
         char *flag = argv[2];
         char *command = argv[3];
         //! EXECUTE SINGLE
@@ -562,6 +546,10 @@ or      ./tracer execute -p \"progA arg1 (...) argN | progB arg1 (...) argN\"\n"
         for (int i = 0; i < argc - 2; i++)
             pids[i] = atoi(argv[i + 2]);
         stats_uniq(pids, argc - 2);
+    } 
+    else {
+        sprintf(outp, "Invalid tracer request. Please try again...\n");
+        write(1, outp, strlen(outp));
     }
 
     return 0;
