@@ -247,7 +247,7 @@ int search_uniq_finished(int* pids, int pids_size){
             close(res_open);
 
             int prog_name_size = strlen(prog_name);
-
+            sleep(1);
             write(p[1], &prog_name_size, sizeof(int));
             write(p[1], prog_name, prog_name_size);
 
@@ -280,11 +280,87 @@ int search_uniq_finished(int* pids, int pids_size){
         close(p[1]);
     }
 
+    return uniq_size;
+}
+
+int search_uniq_finished2(int *pids, int pids_size) {
+    int total_time = 0;
+    int status;
+    char outp[100];
+    char file_in[sizeof(struct exec)];
+    char uniq_progs[pids_size][100];
+
+    int pipes[pids_size][2];
+
+    // Create pipes for each child process
+    for (int i = 0; i < pids_size; i++) {
+        pipe(pipes[i]);
+    }
+
+    // Fork child processes
+    for (int i = 0; i < pids_size; i++) {
+        int resf = fork();
+        if (resf == 0) {
+            // Child writes the program name to its respective pipe
+            close(pipes[i][0]);
+            char folder_file[100];
+            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
+            int res_open = open(folder_file, O_RDONLY, 0660);
+            if (res_open < 0) {
+                sprintf(outp, "Error opening file %d", pids[i]);
+                perror(outp);
+                int aux = 0;
+                write(pipes[i][1], &aux, sizeof(int));
+                close(pipes[i][1]);
+                _exit(-1);
+            }
+
+            struct exec file_exec;
+            read(res_open, &file_exec, sizeof(struct exec));
+            char prog_name[100];
+            strcpy(prog_name, file_exec.prog_name);
+
+            close(res_open);
+
+            int prog_name_size = strlen(prog_name);
+            write(pipes[i][1], &prog_name_size, sizeof(int));
+            write(pipes[i][1], prog_name, prog_name_size);
+
+            close(pipes[i][1]);
+            _exit(0);
+        }
+    }
+
+    // Wait for all child processes to finish
+    for (int i = 0; i < pids_size; i++) {
+        wait(&status);
+    }
+
+    // Read program names from pipes and store unique names
+    int uniq_size = 0;
+    for (int i = 0; i < pids_size; i++) {
+        close(pipes[i][1]);
+        int prog_rec_size;
+        char prog_received[100];
+        if (read(pipes[i][0], &prog_rec_size, sizeof(int)) != 0) {
+            read(pipes[i][0], prog_received, prog_rec_size);
+            prog_received[prog_rec_size] = '\0'; // Ensure the string is null-terminated
+            int idx;
+            for (idx = 0; idx < uniq_size && strcmp(uniq_progs[idx], prog_received) != 0; idx++);
+            if (idx == uniq_size) {
+                strcpy(uniq_progs[idx], prog_received);
+                uniq_size++;
+            }
+        }
+        close(pipes[i][0]);
+    }
+
     for (int i = 0; i < uniq_size; i++)
-        printf("uniq[i] %s\n", uniq_progs[i]);
+        printf("uniq[%d] %s\n", i, uniq_progs[i]);
 
     return 0;
 }
+
 
 
 int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
@@ -737,7 +813,7 @@ int main(int argc, char* argv[]){
                 }
                 
                 //calcular tempo total
-                int total_time = search_uniq_finished(pids, pids_size);
+                int total_time = search_uniq_finished2(pids, pids_size);
 
                 //enviar string de output
                 sprintf(outp, "Total execution time is %d ms\n", total_time);
