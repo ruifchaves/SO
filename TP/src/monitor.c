@@ -345,80 +345,7 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
 
 
 //! STATS-UNIQ
-//TODO to be removed
-int search_uniq_finished(int* pids, int pids_size){
-    int total_time = 0;
-    int status;
-    char outp[100];
-    char file_in[sizeof(struct exec)];
-    char uniq_progs[pids_size][100];
-
-    int p[2];
-
-    int uniq_size = 0;
-    for (int i = 0; i < pids_size; i++) {
-        pipe(p);
-        int resf = fork();
-        if (resf == 0) {
-            
-            // Filho vai escrever no pipe o nome do programa
-            close(p[0]);
-            char folder_file[100];
-            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
-            int res_open = open(folder_file, O_RDONLY, 0660);
-            if (res_open < 0) {
-                sprintf(outp, "Error opening file %d", pids[i]);
-                perror(outp);
-                int aux = 0;
-                write(p[1], &aux, sizeof(int));
-                close(p[1]);
-                _exit(-1);
-            }
-
-            struct exec file_exec;
-            read(res_open, &file_exec, sizeof(struct exec));
-            char prog_name[100];
-            strcpy(prog_name, file_exec.prog_name);
-
-            close(res_open);
-
-            int prog_name_size = strlen(prog_name);
-            write(p[1], &prog_name_size, sizeof(int));
-            write(p[1], prog_name, prog_name_size);
-
-            close(p[1]);
-            _exit(0);
-
-        } else {
-            close(p[1]);
-            int prog_rec_size;
-            char prog_received[100];
-            if (read(p[0], &prog_rec_size, sizeof(int)) != 0) {
-                read(p[0], prog_received, prog_rec_size);
-                prog_received[prog_rec_size] = '\0';
-                int idx;
-                for (idx = 0; idx < uniq_size && strcmp(uniq_progs[idx], prog_received) != 0; idx++)
-                    printf("cmp: %s %s\n", uniq_progs[idx], prog_received);
-                if (idx == uniq_size) { 
-                    strcpy(uniq_progs[idx], prog_received);
-                    uniq_size++;
-                    printf("saved %s in %d\n", uniq_progs[idx], idx);
-                }
-            }
-            wait(&status);
-            close(p[0]);
-        }
-
-        //fechar os pipes depois de cada iteracao
-        //These lines were added just before the end of the for loop in the search_uniq_finished function. Closing the pipe after each iteration ensures that the pipe is properly reset for the next iteration, preventing any issues with reading and writing to the pipe. This change resolved the problem and allowed the code to display the unique program names correctly.
-        close(p[0]);
-        close(p[1]);
-    }
-
-    return uniq_size;
-}
-
-int search_uniq_finished2(int *pids, int pids_size) { //concurrent
+int search_uniq_finished(int *pids, int pids_size) { //concurrent
     int total_time = 0;
     int status;
     char outp[100];
@@ -825,7 +752,7 @@ int main(int argc, char* argv[]){
                     //printf("pids received: %d\n", pids[i]);
                 }
                 
-                int total_time = search_uniq_finished2(pids, pids_size);
+                int total_time = search_uniq_finished(pids, pids_size);
 
                 //enviar string de output
                 sprintf(outp, "Uniq Progs Number: %d\n", total_time);
