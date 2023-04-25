@@ -223,8 +223,8 @@ int search_pid_finished(int* pids, int pids_size){
     char file_in[sizeof(struct exec)];
 
     // Criar pipe para processo filho
-    int pipes[2];
-    if (pipe(pipes) == -1) {
+    int p[2];
+    if (pipe(p) == -1) {
         perror("Error creating pipe");
         return -1;
     }
@@ -239,7 +239,7 @@ int search_pid_finished(int* pids, int pids_size){
             return -1;
         }
         else if (resf == 0){
-            close(pipes[0]);
+            close(p[0]);
 
             char folder_file[100];
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
@@ -248,8 +248,8 @@ int search_pid_finished(int* pids, int pids_size){
                 sprintf(outp, "Error opening file %d", pids[i]);
                 perror(outp);
                 int error_add_zero = 0;
-                write(pipes[1], &error_add_zero, sizeof(int));
-                close(pipes[1]);
+                write(p[1], &error_add_zero, sizeof(int));
+                close(p[1]);
                 _exit(-1);
             }
 
@@ -259,10 +259,10 @@ int search_pid_finished(int* pids, int pids_size){
             struct timeval end =  file_exec.end;
 
             int elapsed_time = calculate_elapsed_time(start, end);
-            write(pipes[1], &elapsed_time, sizeof(int));
+            write(p[1], &elapsed_time, sizeof(int));
 
             close(res_open);
-            close(pipes[1]);
+            close(p[1]);
             _exit(0);
 
         }
@@ -270,12 +270,17 @@ int search_pid_finished(int* pids, int pids_size){
 
     // Esperar que todos os processos filho terminem
     for (int i = 0; i < pids_size; i++) {
-        close(pipes[1]);
+        if (wait(&status) == -1) {
+            sprintf(outp, "Error in waiting for child process");
+            perror(outp);
+            return -1;
+        }
+        close(p[1]);
         int elapsed;
-        read(pipes[0], &elapsed, sizeof(int));
+        read(p[0], &elapsed, sizeof(int));
         elapsed_total += elapsed;
     }
-    close(pipes[0]);
+    close(p[0]);
 
     // Retornar tempo total em ms
     return elapsed_total;
@@ -288,6 +293,12 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
     char outp[100];
     char file_in[sizeof(struct exec)];
 
+    // Criar pipe para processo filho
+    int pipes[2];
+    if (pipe(pipes) == -1) {
+        perror("Error creating pipe");
+        return -1;
+    }
 
     // Fazer tantos fork quanto os pids passados como argumento
     int num_times=0;
@@ -328,7 +339,6 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
             _exit(flag_equal);
             if(flag_equal == 0) _exit(0);
             else _exit(1);
-
         }
     }
     
@@ -336,7 +346,7 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
     for(int i = 0; i < pids_size; i++){
         //waitpid(resf, &status, 0);
         if (wait(&status) == -1) {
-            sprintf(outp, "Error in waiting for child #%d", i+1);
+            sprintf(outp, "Error in waiting for child process");
             perror(outp);
             return -1;
         }
@@ -345,7 +355,7 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
         printf("num_times: %d\n", num_times);
     }
 
-    // Retornar número de execusoes do command
+    // Retornar número de execuções do command
     return num_times;
 }
 
@@ -412,10 +422,10 @@ int search_uniq_finished(int *pids, int pids_size) { //concurrent
     // Esperar que todos os processos filho terminem
     for (int i = 0; i < pids_size; i++) {
         if (wait(&status) == -1) {
-            sprintf(outp, "Error in waiting for child #%d", i+1);
+            sprintf(outp, "Error in waiting for child process");
             perror(outp);
             return -1;
-        }    
+        }
     }
 
     // Ler nomes dos programas dos pipes e guardar os únicos
