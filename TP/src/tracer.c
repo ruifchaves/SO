@@ -430,18 +430,18 @@ int stats_command(char *command, int *pids, int pids_size)
 prog-a
 prog-c
 prog-h */
-int stats_uniq()
+int stats_uniq(int *pids, int pids_size)
 {
     char outp[300];
 
     // fazer prep e enviar query_int para o monitor
-    int query_int = 40;
+    int query_int = 60;
     write(fd_clientServer, &query_int, sizeof(int));
 
     // enviar para o monitor o nome do pipe criado para este pid
     int fifoname_read_size = strlen(fifoname_read);
     write(fd_clientServer, &fifoname_read_size, sizeof(int));
-    write(fd_clientServer, &fifoname_read, fifoname_read_size);
+    write(fd_clientServer, &fifoname_read, fifoname_read_size);    
 
     // abrir o pipe criado para este pid para ler info enviada pelo monitor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -566,9 +566,9 @@ or      ./tracer execute -p \"progA arg1 (...) argN | progB arg1 (...) argN\"\n"
     {
         // Array de PIDs argumento
         int pids[argc - 2];
-        for (int i = 0; i < argc; i++)
+        for (int i = 0; i < argc - 2; i++)
             pids[i] = atoi(argv[i + 2]);
-        stats_uniq(argc - 2, pids);
+        stats_uniq(pids, argc - 2);
     }
 
     return 0;

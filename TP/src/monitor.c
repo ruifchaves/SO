@@ -210,7 +210,7 @@ int calculate_elapsed_time(struct timeval start, struct timeval end){
     return elapsed_time;
 }
 
-int search__uniq_finished(int* pids, int pids_size, char* command){
+int search_uniq_finished(int* pids, int pids_size){
     int total_time = 0;
     int status;
     char outp[100];
@@ -218,55 +218,69 @@ int search__uniq_finished(int* pids, int pids_size, char* command){
     char uniq_progs[pids_size][100];
 
     int p[2];
-    pipe(p);
 
-    int num_times=0;
-    for(int i = 0; i < pids_size; i++){
+    int uniq_size = 0;
+    for (int i = 0; i < pids_size; i++) {
+        pipe(p);
         int resf = fork();
-        if(resf == 0){
+        if (resf == 0) {
             
             //filho vai escrever no pipe o nome do programa
             close(p[0]);
             char folder_file[100];
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
             int res_open = open(folder_file, O_RDONLY, 0660);
-            if(res_open < 0){
-                sprintf(outp, "Error opening finished execution file  %d", pids[i]);
+            if (res_open < 0) {
+                sprintf(outp, "Error opening file %d", pids[i]);
                 perror(outp);
                 int aux = 0;
-                _exit(0);
+                write(p[1], &aux, sizeof(int));
+                close(p[1]);
+                _exit(-1);
             }
 
             struct exec file_exec;
             read(res_open, &file_exec, sizeof(struct exec));
             char prog_name[100];
             strcpy(prog_name, file_exec.prog_name);
+
             close(res_open);
 
-            //caso queiramos so mesmo o nome do programa
-            //char* prog_name_noargs = strtok(prog_name, " ");
-
             int prog_name_size = strlen(prog_name);
+
             write(p[1], &prog_name_size, sizeof(int));
-            write(p[1], &prog_name, prog_name_size);
+            write(p[1], prog_name, prog_name_size);
 
             close(p[1]);
+            _exit(0);
 
         } else {
             close(p[1]);
             int prog_rec_size;
             char prog_received[100];
-            read(p[0], &prog_rec_size, sizeof(int));
-            read(p[0], &prog_received, prog_rec_size);
-            int idx;
-            for(idx = 0; strcmp(uniq_progs[idx], prog_received) && uniq_progs[idx] != NULL; idx++);
-            if(uniq_progs[idx] == NULL) strcpy(uniq_progs[idx], prog_received);
+            if (read(p[0], &prog_rec_size, sizeof(int)) != 0) {
+                read(p[0], prog_received, prog_rec_size);
+                prog_received[prog_rec_size] = '\0'; // Ensure the string is null-terminated
+                int idx;
+                for (idx = 0; idx < uniq_size && strcmp(uniq_progs[idx], prog_received) != 0; idx++)
+                    printf("cmp: %s %s\n", uniq_progs[idx], prog_received);
+                if (idx == uniq_size) { 
+                    strcpy(uniq_progs[idx], prog_received);
+                    uniq_size++;
+                    printf("saved %s in %d\n", uniq_progs[idx], idx);
+                }
+            }
             wait(&status);
             close(p[0]);
         }
+
+        //fechar os pipes depois de cada iteracao
+/*         These lines were added just before the end of the for loop in the search_uniq_finished function. Closing the pipe after each iteration ensures that the pipe is properly reset for the next iteration, preventing any issues with reading and writing to the pipe. This change resolved the problem and allowed the code to display the unique program names correctly.
+ */        close(p[0]);
+        close(p[1]);
     }
 
-    for(int i = 0; uniq_progs[i] != NULL ; i++)
+    for (int i = 0; i < uniq_size; i++)
         printf("uniq[i] %s\n", uniq_progs[i]);
 
     return 0;
@@ -289,9 +303,8 @@ int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
             int res_open = open(folder_file, O_RDONLY, 0660);
             if(res_open < 0){
-                sprintf(outp, "Error opening finished execution file  %d", pids[i]);
+                sprintf(outp, "Error opening file %d", pids[i]);
                 perror(outp);
-                int aux = 0;
                 _exit(0);
             }
 
@@ -450,7 +463,6 @@ int main(int argc, char* argv[]){
     currExecs = init_llexec();
     finExecs = init_llfin();
     sprintf(fin_dir, "../%s/", folder);
-    write(1, &fin_dir, strlen(fin_dir));
     while(1){
         //Abrir o pipe criado
         fd_clientServer = open(fifoname, O_RDONLY);
@@ -725,7 +737,7 @@ int main(int argc, char* argv[]){
                 }
                 
                 //calcular tempo total
-                int total_time = search_pid_finished(pids, pids_size);
+                int total_time = search_uniq_finished(pids, pids_size);
 
                 //enviar string de output
                 sprintf(outp, "Total execution time is %d ms\n", total_time);
