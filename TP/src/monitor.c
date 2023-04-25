@@ -210,6 +210,134 @@ int calculate_elapsed_time(struct timeval start, struct timeval end){
     return elapsed_time;
 }
 
+
+int search_pid_finished(int* pids, int pids_size){
+    int total_time = 0;
+    int status;
+    char outp[100];
+    char file_in[sizeof(struct exec)];
+
+    // Criar pipe para processo filho
+    int pipes[2];
+    if (pipe(pipes) == -1) {
+        perror("Error creating pipe");
+        return -1;
+    }
+
+    // Fazer tantos fork quanto os pids passados como argumento
+    int elapsed_total=0;
+    for (int i = 0; i < pids_size; i++) {
+        int resf = fork();
+         if (resf == -1) {
+            sprintf(outp, "Error in fork #%d", i+1);
+            perror(outp);
+            return -1;
+        } else if (resf == 0){
+            close(pipes[0]);
+
+            char folder_file[100];
+            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
+            int res_open = open(folder_file, O_RDONLY, 0660);
+            if(res_open < 0){
+                sprintf(outp, "Error opening file %d", pids[i]);
+                perror(outp);
+                _exit(-1);
+            }
+
+            struct exec file_exec;
+            read(res_open, &file_exec, sizeof(struct exec));
+            struct timeval start =  file_exec.start;
+            struct timeval end =  file_exec.end;
+
+            int elapsed_time = calculate_elapsed_time(start, end);
+            write(pipes[1], &elapsed_time, sizeof(int));
+
+            close(res_open);
+            close(pipes[1]);
+            _exit(0);
+
+        } else {
+            close(pipes[1]);
+            int elapsed;
+            read(pipes[0], &elapsed, sizeof(int));
+            elapsed_total += elapsed;
+            close(pipes[0]);
+        }
+    }
+
+    // Retornar tempo total em ms
+    return elapsed_total;
+}
+
+int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
+    int total_time = 0;
+    int status;
+    char outp[100];
+    char file_in[sizeof(struct exec)];
+
+
+    // Fazer tantos fork quanto os pids passados como argumento
+    int num_times=0;
+    for (int i = 0; i < pids_size; i++) {
+        int resf = fork();
+        if (resf == -1){
+            sprintf(outp, "Error in fork #%d", i+1);
+            perror(outp);
+            return -1;
+        } 
+        
+        else if(resf == 0){
+            int ret;
+            char folder_file[100];
+            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
+            int res_open = open(folder_file, O_RDONLY, 0660);
+            if(res_open < 0){
+                sprintf(outp, "Error opening file %d", pids[i]);
+                perror(outp);
+                _exit(0);
+            }
+
+            struct exec file_exec;
+            if (read(res_open, &file_exec, sizeof(struct exec)) == -1) {
+                sprintf(outp, "Error reading file %d", pids[i]);
+                perror(outp);
+                close(res_open);
+                _exit(0);
+            }            
+            char prog_name[100];
+            strcpy(prog_name, file_exec.prog_name);
+            close(res_open);
+
+            char* prog_name_noargs = strtok(prog_name, " ");
+
+            sleep(1);
+            int flag_equal = 1, ch, bigger_prog_name;
+            if (strcmp(command, prog_name_noargs) != 0) flag_equal = 0;
+            _exit(flag_equal);
+            if(flag_equal == 0) _exit(0);
+            else _exit(1);
+
+        }
+    }
+    
+    // Esperar que todos os processos filhos terminem
+    for(int i = 0; i < pids_size; i++){
+        //waitpid(resf, &status, 0);
+        if (wait(&status) == -1) {
+            sprintf(outp, "Error in waiting for child #%d", i+1);
+            perror(outp);
+            return -1;
+        }
+        printf("pai aux: %d\n", WEXITSTATUS(status));
+        num_times += WEXITSTATUS(status);
+        printf("num_times: %d\n", num_times);
+    }
+
+    // Retornar número de execusoes do command
+    return num_times;
+}
+
+
 int search_uniq_finished(int* pids, int pids_size){
     int total_time = 0;
     int status;
@@ -225,7 +353,7 @@ int search_uniq_finished(int* pids, int pids_size){
         int resf = fork();
         if (resf == 0) {
             
-            //filho vai escrever no pipe o nome do programa
+            // Filho vai escrever no pipe o nome do programa
             close(p[0]);
             char folder_file[100];
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
@@ -247,7 +375,6 @@ int search_uniq_finished(int* pids, int pids_size){
             close(res_open);
 
             int prog_name_size = strlen(prog_name);
-            sleep(1);
             write(p[1], &prog_name_size, sizeof(int));
             write(p[1], prog_name, prog_name_size);
 
@@ -260,7 +387,7 @@ int search_uniq_finished(int* pids, int pids_size){
             char prog_received[100];
             if (read(p[0], &prog_rec_size, sizeof(int)) != 0) {
                 read(p[0], prog_received, prog_rec_size);
-                prog_received[prog_rec_size] = '\0'; // Ensure the string is null-terminated
+                prog_received[prog_rec_size] = '\0';
                 int idx;
                 for (idx = 0; idx < uniq_size && strcmp(uniq_progs[idx], prog_received) != 0; idx++)
                     printf("cmp: %s %s\n", uniq_progs[idx], prog_received);
@@ -275,15 +402,15 @@ int search_uniq_finished(int* pids, int pids_size){
         }
 
         //fechar os pipes depois de cada iteracao
-/*         These lines were added just before the end of the for loop in the search_uniq_finished function. Closing the pipe after each iteration ensures that the pipe is properly reset for the next iteration, preventing any issues with reading and writing to the pipe. This change resolved the problem and allowed the code to display the unique program names correctly.
- */        close(p[0]);
+        //These lines were added just before the end of the for loop in the search_uniq_finished function. Closing the pipe after each iteration ensures that the pipe is properly reset for the next iteration, preventing any issues with reading and writing to the pipe. This change resolved the problem and allowed the code to display the unique program names correctly.
+        close(p[0]);
         close(p[1]);
     }
 
     return uniq_size;
 }
 
-int search_uniq_finished2(int *pids, int pids_size) {
+int search_uniq_finished2(int *pids, int pids_size) { //concurrent
     int total_time = 0;
     int status;
     char outp[100];
@@ -292,16 +419,26 @@ int search_uniq_finished2(int *pids, int pids_size) {
 
     int pipes[pids_size][2];
 
-    // Create pipes for each child process
+    // Criar pipes para cada processo filho
     for (int i = 0; i < pids_size; i++) {
-        pipe(pipes[i]);
+        if (pipe(pipes[i]) == -1) {
+            sprintf(outp, "Error creating pipe #%d", i+1);
+            perror(outp);
+            return -1;
+        }
     }
 
-    // Fork child processes
+    // Fazer tantos fork quanto os pids passados como argumento
     for (int i = 0; i < pids_size; i++) {
         int resf = fork();
-        if (resf == 0) {
-            // Child writes the program name to its respective pipe
+        if (resf == -1) {
+            sprintf(outp, "Error in fork #%d", i+1);
+            perror(outp);
+            return -1;
+        } 
+        
+        else if (resf == 0) {
+            // Filho vai escrever no pipe o nome do programa
             close(pipes[i][0]);
             char folder_file[100];
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
@@ -331,12 +468,16 @@ int search_uniq_finished2(int *pids, int pids_size) {
         }
     }
 
-    // Wait for all child processes to finish
+    // Esperar que todos os processos filhos terminem
     for (int i = 0; i < pids_size; i++) {
-        wait(&status);
+        if (wait(&status) == -1) {
+            sprintf(outp, "Error in waiting for child #%d", i+1);
+            perror(outp);
+            return -1;
+        }    
     }
 
-    // Read program names from pipes and store unique names
+    // Ler nomes dos programas dos pipes e guardar os únicos
     int uniq_size = 0;
     for (int i = 0; i < pids_size; i++) {
         close(pipes[i][1]);
@@ -344,7 +485,7 @@ int search_uniq_finished2(int *pids, int pids_size) {
         char prog_received[100];
         if (read(pipes[i][0], &prog_rec_size, sizeof(int)) != 0) {
             read(pipes[i][0], prog_received, prog_rec_size);
-            prog_received[prog_rec_size] = '\0'; // Ensure the string is null-terminated
+            prog_received[prog_rec_size] = '\0'; // Making sure que a string é null terminated
             int idx;
             for (idx = 0; idx < uniq_size && strcmp(uniq_progs[idx], prog_received) != 0; idx++);
             if (idx == uniq_size) {
@@ -355,158 +496,12 @@ int search_uniq_finished2(int *pids, int pids_size) {
         close(pipes[i][0]);
     }
 
-    for (int i = 0; i < uniq_size; i++)
-        printf("uniq[%d] %s\n", i, uniq_progs[i]);
+    //DEBUG
+    for (int i = 0; i < uniq_size; i++) printf("uniq[%d] %s\n", i, uniq_progs[i]);
 
     return 0;
 }
 
-
-
-int search_pid_and_prog_finished(int* pids, int pids_size, char* command){
-    int total_time = 0;
-    int status;
-    char outp[100];
-    char file_in[sizeof(struct exec)];
-
-    int num_times=0;
-    for(int i = 0; i < pids_size; i++){
-        int resf = fork();
-        if(resf == 0){
-
-            int ret;
-            char folder_file[100];
-            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
-            int res_open = open(folder_file, O_RDONLY, 0660);
-            if(res_open < 0){
-                sprintf(outp, "Error opening file %d", pids[i]);
-                perror(outp);
-                _exit(0);
-            }
-
-            struct exec file_exec;
-            read(res_open, &file_exec, sizeof(struct exec));
-            char prog_name[100];
-            strcpy(prog_name, file_exec.prog_name);
-            close(res_open);
-
-            char* prog_name_noargs = strtok(prog_name, " ");
-
-            sleep(1);
-            int flag_equal = 1, ch, bigger_prog_name;
-            if (strcmp(command, prog_name_noargs) != 0) flag_equal = 0;
-            //printf("%d %d\n", strlen(prog_name_noargs), strlen(command));
-            //bigger_prog_name = (strlen(prog_name_noargs) >= strlen(command)) ? strlen(prog_name_noargs) : strlen(command);
-            //for(ch = 0; ch < bigger_prog_name && flag_equal; ch++){ //strlen(command)-1 because it includes \0
-            //    if(command[ch] != prog_name_noargs[ch]) flag_equal = 0;
-            //    printf("%c == %c\n", command[ch], prog_name_noargs[ch]);
-            //}
-            _exit(flag_equal);
-            if(flag_equal == 0) _exit(0);
-            else _exit(1);
-
-        }
-    }
-        
-    for(int i = 0; i < pids_size; i++){
-        //waitpid(resf, &status, 0); // Wait for the child process to finish
-        wait(&status);
-        printf("pai aux: %d\n", WEXITSTATUS(status));
-        num_times += WEXITSTATUS(status);
-        printf("num_times: %d\n", num_times);
-    }
-
-    return num_times;
-}
-
-
-
-int search_pid_finished(int* pids, int pids_size){
-
-    int total_time = 0;
-    int status;
-    char outp[100];
-    char file_in[sizeof(struct exec)];
-
-    //criar os varios pipes
-    int pipes[2];
-    if(pipe(pipes) < 0){
-        perror("Error creating pipes");
-        exit(1);
-    }
-
-    int elapsed_total=0;
-    for(int i = 0; i < pids_size; i++){
-        int resf = fork();
-        if(resf == 0){
-            close(pipes[0]);
-
-            char folder_file[100];
-            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
-            int res_open = open(folder_file, O_RDONLY, 0660);
-            if(res_open < 0){
-                sprintf(outp, "Error opening file %d", pids[i]);
-                perror(outp);
-                _exit(-1);
-            }
-
-            struct exec file_exec;
-            read(res_open, &file_exec, sizeof(struct exec));
-            struct timeval start =  file_exec.start;
-            struct timeval end =  file_exec.end;
-
-            int elapsed_time = calculate_elapsed_time(start, end);
-            write(pipes[1], &elapsed_time, sizeof(int));
-
-            close(res_open);
-            close(pipes[1]);
-            _exit(0);
-        } else {
-            close(pipes[1]);
-            int elapsed;
-            read(pipes[0], &elapsed, sizeof(int));
-            elapsed_total += elapsed;
-            close(pipes[0]);
-        }
-    }
-
-    return elapsed_total;
-}
-
-/* int search_pid_finishedExecs(int* pids, int pids_size){
-
-    for(int i = 0; i < pids_size; i++) printf("pids[i] %d\n", pids[i]);
-    llfin* current = finExecs;
-    int total_time = 0;
-    int status;
-
-    //comparar os varios pids em cada fork/elemento da ll  concorrentemente
-    //aka comparacao se algum dos pids passados em pids é o elem
-    //em vez de comparar todos os pids no current e fazer o mesmo no seguinte
-    for(int i=0; i < llfin_size; i++, current=current->next){
-        int resf = fork();
-        if(resf == 0){
-            int llelem_pid = current->exec_info.pid;
-            int i;
-            for(i = 0; llelem_pid != pids[i] && i < pids_size; i++);
-            if(i == pids_size) _exit(0);
-
-            //how to pass current->exec_info.start value to parent process??
-
-            //int elapsed_time = calculate_elapsed_time(current->exec_info.start);
-            _exit(0);// - (int) current->exec_info.start);
-        }
-    }
-
-    for(int i = 0; i < llfin_size; i++){
-        wait(&status);
-        printf("WEXITSTATUS %d: %d\n", i, WEXITSTATUS(status));
-        total_time += WEXITSTATUS(status);
-        //printf("total time: %d\n", total_time);
-    }
-
-    return total_time;
-} */
 
 
 int main(int argc, char* argv[]){
@@ -519,14 +514,14 @@ int main(int argc, char* argv[]){
     llexec_size = 0;
     llfin_size = 0;
 
-    if(argc != 2){
+    if (argc != 2) {
         sprintf(outp, "Finished executions folder name not provided or not the correct number of arguments\nPlease try again...\n");
         write(1, &outp, strlen(outp));
         exit(-1);
     }
     char* folder = argv[1];
 
-    //criar pipe para leitura do escrito pelos clientes
+    // Criar pipe para leitura do escrito pelos clientes
     sprintf(fifoname, "../tmp/%s", fifo_cliSer);
     res_createfifo = mkfifo(fifoname, 0660);
     if(res_createfifo == -1){
@@ -540,14 +535,14 @@ int main(int argc, char* argv[]){
     finExecs = init_llfin();
     sprintf(fin_dir, "../%s/", folder);
     while(1){
-        //Abrir o pipe criado
+        // Abrir o pipe criado
         fd_clientServer = open(fifoname, O_RDONLY);
         if(fd_clientServer == -1){
             perror("Error opening Client->Server pipe to read");
             exit(-1);
         }
 
-        //pipe opened
+        // Pipe opened
         int query_int;
         while((res_readfifo = read(fd_clientServer, &query_int, sizeof(int))) > 0){
             if(query_int == 10){  //execute_single
@@ -812,11 +807,10 @@ int main(int argc, char* argv[]){
                     //printf("pids received: %d\n", pids[i]);
                 }
                 
-                //calcular tempo total
                 int total_time = search_uniq_finished2(pids, pids_size);
 
                 //enviar string de output
-                sprintf(outp, "Total execution time is %d ms\n", total_time);
+                sprintf(outp, "Uniq Progs Number: %d\n", total_time);
                 int tot_size = strlen(outp);
                 write(fd_serverClient, &tot_size, sizeof(int));
                 write(fd_serverClient, &outp, tot_size);
@@ -828,6 +822,7 @@ int main(int argc, char* argv[]){
             }
         }
     }
+    
     //close(fd_clientServer);
     unlink(fifoname);
     return 0;
