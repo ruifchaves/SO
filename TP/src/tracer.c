@@ -247,10 +247,9 @@ int status() {
     int query_int = 3;
     write(fd_clientServer, &query_int, sizeof(int));
 
-    // Enviar nome do pipe Servidor->Cliente deste pid
-    int fifoname_read_size = strlen(fifoname_read);
-    write(fd_clientServer, &fifoname_read_size, sizeof(int));
-    write(fd_clientServer, &fifoname_read, fifoname_read_size);
+    // Enviar pid para abrir Servidor->Cliente deste pid
+    int pid = getpid();
+    write(fd_clientServer, &pid, sizeof(int));
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -291,10 +290,9 @@ int stats_time(int *pids, int pids_size) {
     int query_int = 4;
     write(fd_clientServer, &query_int, sizeof(int));
 
-    // Enviar nome do pipe Servidor->Cliente deste pid
-    int fifoname_read_size = strlen(fifoname_read);
-    write(fd_clientServer, &fifoname_read_size, sizeof(int));
-    write(fd_clientServer, &fifoname_read, fifoname_read_size);
+    // Enviar pid para abrir Servidor->Cliente deste pid
+    int pid = getpid();
+    write(fd_clientServer, &pid, sizeof(int));
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -344,10 +342,9 @@ int stats_command(char *command, int *pids, int pids_size) {
     int query_int = 5;
     write(fd_clientServer, &query_int, sizeof(int));
 
-    // Enviar nome do pipe Servidor->Cliente deste pid
-    int fifoname_read_size = strlen(fifoname_read);
-    write(fd_clientServer, &fifoname_read_size, sizeof(int));
-    write(fd_clientServer, &fifoname_read, fifoname_read_size);
+    // Enviar pid para abrir Servidor->Cliente deste pid
+    int pid = getpid();
+    write(fd_clientServer, &pid, sizeof(int));
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -405,10 +402,9 @@ int stats_uniq(int *pids, int pids_size) {
     int query_int = 6;
     write(fd_clientServer, &query_int, sizeof(int));
 
-    // Enviar nome do pipe Servidor->Cliente deste pid
-    int fifoname_read_size = strlen(fifoname_read);
-    write(fd_clientServer, &fifoname_read_size, sizeof(int));
-    write(fd_clientServer, &fifoname_read, fifoname_read_size);    
+    // Enviar pid para abrir Servidor->Cliente deste pid
+    int pid = getpid();
+    write(fd_clientServer, &pid, sizeof(int));   
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -468,6 +464,12 @@ int createFIFO() {
 
 int main(int argc, char *argv[]) {
     char outp[300];
+
+    if(argc == 1){
+        sprintf(outp, "Invalid tracer request.\nPlease try again...\n");
+        write(1, outp, strlen(outp));
+        exit(-1);
+    }
 
     // Abrir fifo Cliente -> Servidor
     sprintf(fifoname_write, "../tmp/%s", fifo_cliSer);
@@ -531,8 +533,9 @@ int main(int argc, char *argv[]) {
         stats_uniq(pids, argc - 2);
     } 
     else {
-        sprintf(outp, "Invalid tracer request. Please try again...\n");
+        sprintf(outp, "Invalid tracer request.\nPlease try again...\n");
         write(1, outp, strlen(outp));
+        exit(-1);
     }
 
     unlink(fifoname_read);
