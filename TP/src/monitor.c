@@ -7,6 +7,12 @@ int request_id = 0;
 char fin_dir[50];
 
 
+typedef struct teste {
+    int pids_size;
+    int pids[100];
+} teste;
+
+
 // Lista ligada com informações das execuções atuais
 typedef struct llexec {
     exec exec_info;
@@ -64,7 +70,7 @@ void add_to_file_finished(int pid, char* folder){
 
     char folder_file[100];
     sprintf(folder_file, "%s%d.txt", fin_dir, pid);
-    int open_res = open(folder_file, O_CREAT | O_WRONLY, 0660);
+    int open_res = open(folder_file, O_CREAT | O_TRUNC | O_WRONLY, 0660);
     if (open_res < 0){
         perror("Error opening file that stores information of finished execution");
         exit(-1);
@@ -473,11 +479,13 @@ int main(int argc, char* argv[]){
         while((res_readfifo = read(fd_clientServer, &query_int, sizeof(int))) > 0){
 
             //! EXECUTE SINGLE or EXECUTE PIPELINE
-            if(query_int == 1 || query_int == 2 || query_int == 3){ 
+            if(query_int == 1 || query_int == 2 || query_int == 3){
                 int store_request_id = request_id++;
                 if(query_int == 1 || query_int == 2){
                     sprintf(outp, "[REQUEST #%d]  New execute request\n", store_request_id);
                     write(1, &outp, strlen(outp));
+
+
 
                     //collect sent info from new request
                     int pid, prog_name_size;
@@ -606,16 +614,53 @@ int main(int argc, char* argv[]){
                     //    sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
                     //    write(1, &outp, strlen(outp));
                     //} else {
-                        //ler pids e pids_size
-                    int pids_size;
-                    read(fd_clientServer, &pids_size, sizeof(int));
-                    int pids[pids_size];
-                    for(int i = 0; i < pids_size; i++){
-                        int tmp;
-                        read(fd_clientServer, &tmp, sizeof(int));
-                        pids[i] = tmp;
-                        //printf("pids received: %d\n", pids[i]);
+                    
+
+                    char fifo_execute_args[100];
+                    sprintf(fifo_execute_args, "../tmp/%d", pid_fifo);
+                    int res_tmp = mkfifo(fifo_execute_args, 0660);
+                    if (res_tmp == -1) {
+                        perror("Error creating temporary Client->Server pipe to read stats-time pids");
+                        exit(-1);
                     }
+                    int fd_tmp = open(fifo_execute_args, O_RDONLY);
+                    if (fd_tmp == -1) {
+                        perror("Error opening temporary Client->Server pipe to read stats-time pids");
+                        exit(-1);
+                    }
+
+                    int p[2];
+                    pipe(p);
+                    int pids_size;
+                    int pids[100];
+                    int resf = fork();
+                    if (resf == -1) {
+                        perror("Error creating child process to handle Status request");
+                        exit(-1);
+                    } else if (resf == 0) {
+                        // child process
+                        close(p[0]);
+                        read(fd_clientServer, &pids_size, sizeof(int));
+                        write(p[1], &pids_size, sizeof(int));
+/*                         for (int i = 0; i < pids_size; i++) {
+                            int tmp;
+                            read(fd_tmp, &tmp, sizeof(int));
+                            write(p[1], &tmp, sizeof(int));
+                            printf("pids wrote: %d\n", pids[i]);
+                        } */
+                        close(p[1]);
+                        _exit(0);
+                    } else {
+
+                        close(p[1]);
+                        read(p[0], &pids_size, sizeof(int));
+                        for (int i = 0; i < pids_size; i++) {
+                            read(p[0], &pids[i], sizeof(int));
+                            printf("PAI pids received: %d\n", pids[i]);
+                        }
+                        close(p[0]);
+                    }
+                    unlink(fifo_execute_args);
                     
                     printf("pids_size: %d\n", pids_size);
                     
