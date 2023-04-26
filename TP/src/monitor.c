@@ -1,17 +1,4 @@
-#include <unistd.h>     //close
-#include <fcntl.h>      //open
-#include <sys/types.h>  //fifos, open
-#include <sys/stat.h>   //fifos, open
-#include <stdio.h>      //sprintf
-#include <errno.h>      //errno
-#include <stdlib.h>     //exit
-#include <string.h>     //strlen, strcmp
-#include <sys/time.h>   //gettimeofday
-#include <sys/wait.h>   //wait
-
-
-#define fifo_cliSer "fifo_client_server"
-#define fifo_serCli "fifo_server_client"
+#include "common.h"
 
 int fd_serverClient;
 int llexec_size;
@@ -19,29 +6,25 @@ int llfin_size;
 int request_id = 0;
 char fin_dir[50];
 
-//definir uma lista ligada para ligar as execucoes atuais
-//ao ter uma lista ligada allows for constant-time insertion and deletion of elements
-typedef struct exec {
-    int pid;
-    char prog_name[100];
-    struct timeval start, end;
-} exec;
 
+// Lista ligada com informações das execuções atuais
 typedef struct llexec {
     exec exec_info;
     struct llexec* next;
 } llexec;
 
+// Lista ligada com informações das execuções terminadas
 typedef struct llfin {
     exec exec_info;
     struct llfin* next;
 } llfin;
 
-
 llexec* currExecs;
 llfin* finExecs;
 
 
+
+// Funções auxiliares para as listas ligadas
 llexec* init_llexec() {
     llexec* head = NULL;
     return head;
@@ -70,7 +53,6 @@ void add_finExec(exec* finished, struct timeval end, long elapsed){
     llfin* node = malloc(sizeof(llfin));
     node->exec_info = *finished;
     node->exec_info.end = end;
-    //node->exec_info.elapse = elapsed;
     node->next = finExecs;
     finExecs = node;
 
@@ -93,9 +75,9 @@ void add_to_file_finished(int pid, char* folder){
     if(i == llfin_size){
         perror("Finished execution not found");
         exit(-1);
-    } else {
-
-        //escrever a struct e depois cada valor (so thats readable), para poder pesquisar depois
+    }
+    else {
+        // Escrevemos a struct e depois cada valor formatado (so that's readable by struct and by text)
         write(open_res, &current->exec_info, sizeof(struct exec));
         char tmp[100];
         sprintf(tmp, "\n\n");
@@ -131,7 +113,6 @@ void add_to_file_finished(int pid, char* folder){
     }
 }
 
-
 void remove_exec(int pid, char* folder, struct timeval end, long elapsed){
     llexec* current = currExecs;
     llexec* previous = NULL;
@@ -141,22 +122,20 @@ void remove_exec(int pid, char* folder, struct timeval end, long elapsed){
         current = current->next;
     }
     
-    if (current == NULL) {
+    if (current == NULL)
         exit(-1);
-    }
 
-    if (previous == NULL) {
+    if (previous == NULL)
         currExecs = current->next;
-    } else {
+    else
         previous->next = current->next;
-    }
+
 
     add_finExec(&current->exec_info, end, elapsed);
     add_to_file_finished(pid, folder);
 
     free(current);
 }
-
 
 void print_llexec() {
     llexec* current = currExecs;
@@ -203,12 +182,6 @@ int size_llfin(){
     return i;
 }
 
-int calculate_elapsed_time(struct timeval start, struct timeval end){
-    long elapsed_seconds = end.tv_sec - start.tv_sec;
-    long elapsed_useconds = end.tv_usec - start.tv_usec;
-    long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
-    return elapsed_time;
-}
 
 
 
@@ -519,7 +492,7 @@ int main(int argc, char* argv[]){
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE]     START: PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
+                sprintf(outp, "[EXECUTE] START      PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -531,18 +504,14 @@ int main(int argc, char* argv[]){
                 read(fd_clientServer, &end_time, sizeof(struct timeval));
 
                 long end_time_ms = end_time.tv_sec * 1000 + end_time.tv_usec / 1000;
-                long elapsed_seconds = end_time.tv_sec - start_time.tv_sec;
-                long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
-                long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+                long elapsed_time = calculate_elapsed_time(start_time, end_time);
 
-                sprintf(outp, "[EXECUTE]     END:   PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
+                sprintf(outp, "[EXECUTE] END        PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
                 write(1, &outp, strlen(outp));
 
                 remove_exec(pid, folder, end_time, elapsed_time);
                 close(fd_serverClient);
 
-
-            
 
             //! EXECUTE PIPELINE
             } else if(query_int == 2) {
@@ -562,7 +531,7 @@ int main(int argc, char* argv[]){
                 read(fd_clientServer, &start_time, sizeof(struct timeval));
                 
                 long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE]     START: PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
+                sprintf(outp, "[EXECUTE] START      PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
                 write(1, &outp, strlen(outp));
 
                 //exec* prog_exec = newExec(pid, prog_name, start_time);
@@ -578,7 +547,7 @@ int main(int argc, char* argv[]){
                 long elapsed_useconds = end_time.tv_usec - start_time.tv_usec;
                 long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
 
-                sprintf(outp, "[EXECUTE]     END:   PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
+                sprintf(outp, "[EXECUTE] END        PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
                 write(1, &outp, strlen(outp));
 
                 remove_exec(pid, folder, end_time, elapsed_time);
@@ -627,7 +596,6 @@ int main(int argc, char* argv[]){
                         write(fd_serverClient, &outp, exec_size);
                     }
                 }
-
                 print_llexec(); //debug
                 print_llfin();  //debug
 

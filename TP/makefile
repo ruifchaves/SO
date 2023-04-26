@@ -46,15 +46,15 @@ folders:
 bin/monitor: obj/monitor.o
 	$(CC) -g obj/monitor.o -o bin/monitor
 
-obj/monitor.o: src/monitor.c
+obj/monitor.o: src/common.h src/monitor.c 
 	$(CC) $(CFLAGS) -g -c src/monitor.c -o obj/monitor.o
 
 bin/tracer: obj/tracer.o
 	$(CC) -g obj/tracer.o -o bin/tracer
 
--o obj/tracer.o: src/tracer.c
+-o obj/tracer.o: src/common.h src/tracer.c
 	$(CC) $(CFLAGS) -g -c src/tracer.c -o obj/tracer.o
 
+#não eliminar a pasta finished
 clean:
 	rm -f obj/* tmp/* bin/{tracer,monitor}
-#não eliminar a pasta finished

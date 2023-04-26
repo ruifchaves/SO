@@ -1,23 +1,9 @@
-#include <stdio.h>     //sprintf
-#include <sys/types.h> //fifos, open
-#include <sys/stat.h>  //fifos, open
-#include <sys/wait.h>  //wait
-#include <stdlib.h>    //exit
-#include <unistd.h>    //close
-#include <string.h>    //strlen, strcmp
-#include <fcntl.h>     //open
-#include <errno.h>     //errno
-#include <sys/time.h>  //gettimeofday
-#include <ctype.h>     //isspace
-
-#define fifo_cliSer "fifo_client_server"
-#define fifo_serCli "fifo_server_client"
+#include "common.h"
 
 int fd_clientServer;
 int fd_serverClient;
 char fifoname_write[50];
 char fifoname_read[50];
-
 
 //! EXECUTE SINGLE
 /* $ ./tracer execute -u "prog-a arg-1 (...) arg-n"
@@ -77,11 +63,7 @@ int execute_single(char *command) {
         if (wait_result != -1 && WIFEXITED(status)) {
             res = WEXITSTATUS(status); //TODO adicionar feedback de erro
             gettimeofday(&end, NULL);
-
-            //TODO Add to separate function
-            long elapsed_seconds = end.tv_sec - start.tv_sec;
-            long elapsed_useconds = end.tv_usec - start.tv_usec;
-            long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+            long elapsed_time = calculate_elapsed_time(start, end);
 
             // Informar o Servidor: PID e timestamp final
             write(fd_clientServer, &resf, sizeof(int));
@@ -236,9 +218,7 @@ int execute_pipeline(char *command) {
 
     if (exitid == num_progs) {
         gettimeofday(&end, NULL);
-        long elapsed_seconds = end.tv_sec - start.tv_sec;
-        long elapsed_useconds = end.tv_usec - start.tv_usec;
-        long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
+        long elapsed_time = calculate_elapsed_time(start, end);
 
         // Informar o Servidor: PID e timestamp final
         write(fd_clientServer, &resf, sizeof(int));
@@ -248,6 +228,9 @@ int execute_pipeline(char *command) {
         write(1, &outp, strlen(outp));
     }
 
+    // Fechar file descriptors e libertar memória
+    free(command_copy);
+    close(fd_clientServer);
     return 0;
 }
 
