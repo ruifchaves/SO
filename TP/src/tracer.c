@@ -5,6 +5,27 @@ int fd_serverClient;
 char fifoname_write[50];
 char fifoname_read[50];
 
+
+//! EXECUTE END
+int execute_end(int pid, struct timeval start, struct timeval end) {
+    char outp[100];
+
+    // Enviar prog id para o servidor
+    int query_int = 3;
+    write(fd_clientServer, &query_int, sizeof(int));
+
+    // Informar o Servidor: PID e timestamp final
+    write(fd_clientServer, &pid, sizeof(int));
+    write(fd_clientServer, &end, sizeof(struct timeval));
+
+    long elapsed_time = calculate_elapsed_time(start, end);
+
+    // Informar o Ciente: Tempo de Execução
+    sprintf(outp, "Ended in %ld ms\n", elapsed_time); // secs to ms
+    write(1, &outp, strlen(outp));
+    return 0;
+}
+
 //! EXECUTE SINGLE
 /* $ ./tracer execute -u "prog-a arg-1 (...) arg-n"
  Running PID 3090
@@ -63,15 +84,8 @@ int execute_single(char *command) {
         if (wait_result != -1 && WIFEXITED(status)) {
             res = WEXITSTATUS(status); //TODO adicionar feedback de erro
             gettimeofday(&end, NULL);
-            long elapsed_time = calculate_elapsed_time(start, end);
 
-            // Informar o Servidor: PID e timestamp final
-            write(fd_clientServer, &resf, sizeof(int));
-            write(fd_clientServer, &end, sizeof(struct timeval));
-
-            // Informar o Ciente: Tempo de Execução
-            sprintf(outp, "Ended in %ld ms\n", elapsed_time); // secs to ms
-            write(1, &outp, strlen(outp));
+            execute_end(resf, start, end);
         }
         else {
             perror("Error in waitpid or child process");
@@ -244,7 +258,7 @@ int status() {
     char outp[300];
 
     // Enviar prog id para o servidor
-    int query_int = 3;
+    int query_int = 4;
     write(fd_clientServer, &query_int, sizeof(int));
 
     // Enviar pid para abrir Servidor->Cliente deste pid
@@ -287,7 +301,7 @@ int stats_time(int *pids, int pids_size) {
     char outp[300];
 
     // Enviar prog id para o servidor
-    int query_int = 4;
+    int query_int = 5;
     write(fd_clientServer, &query_int, sizeof(int));
 
     // Enviar pid para abrir Servidor->Cliente deste pid
@@ -339,7 +353,7 @@ int stats_command(char *command, int *pids, int pids_size) {
     char outp[300];
 
     // Enviar prog id para o servidor
-    int query_int = 5;
+    int query_int = 6;
     write(fd_clientServer, &query_int, sizeof(int));
 
     // Enviar pid para abrir Servidor->Cliente deste pid
@@ -399,7 +413,7 @@ int stats_uniq(int *pids, int pids_size) {
     char outp[300];
 
     // Enviar prog id para o servidor
-    int query_int = 6;
+    int query_int = 7;
     write(fd_clientServer, &query_int, sizeof(int));
 
     // Enviar pid para abrir Servidor->Cliente deste pid
@@ -493,8 +507,11 @@ int main(int argc, char *argv[]) {
             execute_single(command);
 
         //! EXECUTE PIPELINE
-        if (strcmp(flag, "-p") == 0)
+        char* cmd = strdup(command);
+        if (strcmp(flag, "-p") == 0 && strtok(cmd, "|") != NULL){
             execute_pipeline(command);
+            free(cmd);
+        }
     }
     
     //! STATUS

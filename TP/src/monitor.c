@@ -422,7 +422,7 @@ int search_uniq_finished(int *pids, int pids_size) { //concurrent
     //DEBUG
     for (int i = 0; i < uniq_size; i++) printf("uniq[%d] %s\n", i, uniq_progs[i]);
 
-    return 0;
+    return uniq_size;
 }
 
 
@@ -473,54 +473,70 @@ int main(int argc, char* argv[]){
         while((res_readfifo = read(fd_clientServer, &query_int, sizeof(int))) > 0){
 
             //! EXECUTE SINGLE or EXECUTE PIPELINE
-            if(query_int == 1 || query_int == 2){
+            if(query_int == 1 || query_int == 2 || query_int == 3){ 
                 int store_request_id = request_id++;
-                char single_or_pipe[100];
-                if(query_int == 1) strcpy(single_or_pipe, "single");
-                else strcpy(single_or_pipe, "pipeline");
-                sprintf(outp, "[REQUEST #%d]  New execute %s request\n", store_request_id, single_or_pipe);
-                write(1, &outp, strlen(outp));
+                if(query_int == 1 || query_int == 2){
+                    sprintf(outp, "[REQUEST #%d]  New execute request\n", store_request_id);
+                    write(1, &outp, strlen(outp));
 
-                //collect sent info from new request
-                int pid, prog_name_size;
-                struct timeval start_time;
-                read(fd_clientServer, &pid, sizeof(int));
-                read(fd_clientServer, &prog_name_size, sizeof(int));
-                char prog_name[prog_name_size+1];
-                read(fd_clientServer, &prog_name, prog_name_size);
-                prog_name[prog_name_size] = '\0'; //add null terminator
-                read(fd_clientServer, &start_time, sizeof(struct timeval)); 
-                
-                
-                long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
-                sprintf(outp, "[EXECUTE] START      PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
-                write(1, &outp, strlen(outp));
+                    //collect sent info from new request
+                    int pid, prog_name_size;
+                    struct timeval start_time;
+                    read(fd_clientServer, &pid, sizeof(int));
+                    read(fd_clientServer, &prog_name_size, sizeof(int));
+                    char prog_name[prog_name_size+1];
+                    read(fd_clientServer, &prog_name, prog_name_size);
+                    prog_name[prog_name_size] = '\0'; //add null terminator
+                    read(fd_clientServer, &start_time, sizeof(struct timeval)); 
+                    
+                    
+                    long start_time_ms = start_time.tv_sec * 1000 + start_time.tv_usec / 1000;
+                    sprintf(outp, "[EXECUTE] START      PID %d ║ Command \"%s\" ║ Start timeval %ld\n", pid, prog_name, start_time_ms);
+                    write(1, &outp, strlen(outp));
 
-                //exec* prog_exec = newExec(pid, prog_name, start_time);
-                add_exec(pid, prog_name, start_time);
+                    //exec* prog_exec = newExec(pid, prog_name, start_time);
+                    add_exec(pid, prog_name, start_time);
+                }
+                //! EXECUTE END
+                else if (query_int == 3) {
+                    struct timeval start_time;
 
-                //collect sent info from request end
-                read(fd_clientServer, &pid, sizeof(int));
-                struct timeval end_time;
-                read(fd_clientServer, &end_time, sizeof(struct timeval));
+                    //collect sent info from request end
+                    int pid;
+                    read(fd_clientServer, &pid, sizeof(int));
+                    struct timeval end_time;
+                    read(fd_clientServer, &end_time, sizeof(struct timeval));
 
-                long end_time_ms = end_time.tv_sec * 1000 + end_time.tv_usec / 1000;
-                long elapsed_time = calculate_elapsed_time(start_time, end_time);
-                sprintf(outp, "[EXECUTE] END        PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
-                write(1, &outp, strlen(outp));
+                    // verificar se há programas a executar que possam ser terminados
+                    int sizell = size_llexec();
+                    write(fd_serverClient, &sizell, sizeof(int));
+                    if(sizell == 0){
+                        sprintf(outp, "[EXECUTE] END        That aren't any programs currently running\n");
+                        write(1, &outp, strlen(outp));
+                        exit(0);
+                    }
 
-                remove_exec(pid, folder, end_time, elapsed_time);
+                    llexec* tmp;
+                    for(tmp = currExecs; tmp != NULL && tmp->exec_info.pid != pid; tmp=tmp->next);
+                    if(tmp == NULL){
+                        sprintf(outp, "There is no program running with pid %d", pid);
+                        perror(outp);
+                        exit(0);
+                    }
+                    else start_time = tmp->exec_info.start;
 
-            } else {
+                    long end_time_ms = end_time.tv_sec * 1000 + end_time.tv_usec / 1000;
+                    long elapsed_time = calculate_elapsed_time(start_time, end_time);
+                    sprintf(outp, "[EXECUTE] END        PID %d ║ End timeval %ld ║ Total time %ld ms\n", pid, end_time_ms, elapsed_time);
+                    write(1, &outp, strlen(outp));
 
-                //TODO não é preciso receber o nome do fifo criado, basta o pid e receber aqui
-
-                //receber o pid para abrir o nome do fifo criado
-                //int fifo_name_size;
-                //read(fd_clientServer, &fifo_name_size, sizeof(int));
-                //char fifo_name[fifo_name_size];
-                //read(fd_clientServer, &fifo_name, fifo_name_size);
-
+                    remove_exec(pid, folder, end_time, elapsed_time);
+                    
+                    sprintf(outp, "[REQUEST #%d]  Ended execute request\n", store_request_id);
+                    write(1, &outp, strlen(outp));
+                }
+            }
+            else {
                 //receber o pid para abrir o nome do fifo criado
                 int pid_fifo;
                 read(fd_clientServer, &pid_fifo, sizeof(int));
@@ -535,7 +551,7 @@ int main(int argc, char* argv[]){
                 }
                 
                 //! STATUS
-                if(query_int == 3) {
+                if(query_int == 4) {
                     int store_request_id = request_id++;
                     sprintf(outp, "[REQUEST #%d]  New status request\n", store_request_id);
                     write(1, &outp, strlen(outp));
@@ -544,7 +560,8 @@ int main(int argc, char* argv[]){
                     if(resf == -1){
                         perror("Error creating child process to handle Status request");
                         exit(-1);
-                    } else if(resf == 0){
+                    }
+                    else if(resf == 0){
 
                         //verificar se há algum programa em execução
                         int sizell = size_llexec();
@@ -552,41 +569,36 @@ int main(int argc, char* argv[]){
                         if(sizell == 0){
                             sprintf(outp, "[STATUS]      That aren't any programs currently running\n");
                             write(1, &outp, strlen(outp));
-                            exit(0);
-                        } else {
-                            //llexec* tmp = currExecs;
-                            for(llexec* tmp = currExecs; tmp != NULL; tmp=tmp->next){
-                                struct timeval til_now;
-                                gettimeofday(&til_now, NULL);
-                                struct timeval start = tmp->exec_info.start;
+                            exit(0); //TODO fecha o processo child?
+                        }
 
-                                long elapsed_seconds = til_now.tv_sec - start.tv_sec;
-                                long elapsed_useconds = til_now.tv_usec - start.tv_usec;
-                                long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);   
+                        for(llexec* tmp = currExecs; tmp != NULL; tmp=tmp->next){
+                            struct timeval til_now;
+                            gettimeofday(&til_now, NULL);
+                            struct timeval start = tmp->exec_info.start;
 
-                                sprintf(outp, "%d   %s   %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, elapsed_time);
-                                int exec_size = strlen(outp);
-                                write(fd_serverClient, &exec_size, sizeof(int));
-                                write(fd_serverClient, &outp, exec_size);
-                            }
+                            long elapsed_time = calculate_elapsed_time(start, til_now);
+
+                            sprintf(outp, "%d   %s   %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, elapsed_time);
+                            int exec_size = strlen(outp);
+                            write(fd_serverClient, &exec_size, sizeof(int));
+                            write(fd_serverClient, &outp, exec_size);
                         }
                         print_llexec(); //debug
                         print_llfin();  //debug
                         _exit(0);
                     }
+                    
+                    sprintf(outp, "[REQUEST #%d]  Ended status request\n", store_request_id);
+                    write(1, &outp, strlen(outp));
+
 
                 //! STATS-TIME
-                } else if(query_int == 4) {
+                } else if(query_int == 5) {
                     int store_request_id = request_id++;
                     sprintf(outp, "[REQUEST #%d]  New stats-time request\n", store_request_id);
                     write(1, &outp, strlen(outp));
                     
-                    int resf = fork();
-                    if(resf == -1){
-                        perror("Error creating child process to handle Status request");
-                        exit(-1);
-                    } else if(resf == 0){
-
                     //verificar se há algum programa que já acabou
                     //int sizell = size_llfin();
                     //write(fd_serverClient, &sizell, sizeof(int));
@@ -605,6 +617,8 @@ int main(int argc, char* argv[]){
                         //printf("pids received: %d\n", pids[i]);
                     }
                     
+                    printf("pids_size: %d\n", pids_size);
+                    
                     //calcular tempo total
                     int total_time = search_pid_finished(pids, pids_size);
 
@@ -613,14 +627,23 @@ int main(int argc, char* argv[]){
                     int tot_size = strlen(outp);
                     write(fd_serverClient, &tot_size, sizeof(int));
                     write(fd_serverClient, &outp, tot_size);
-                    //}
+                    write(1, &outp, tot_size);
 
-                    sprintf(outp, "[REQUEST #%d]  Ended stats-time\n", store_request_id);
+                    /* int resf = fork();
+                    if(resf == -1){
+                        perror("Error creating child process to handle Stats-time request");
+                        exit(-1);
+                    }
+                    else if(resf == 0){
+                        exit(0);
+                    } */
+
+                    sprintf(outp, "[REQUEST #%d]  Ended stats-time request\n", store_request_id);
                     write(1, &outp, strlen(outp));
 
 
                 //! STATS-COMMAND
-                } else if(query_int == 5) {
+                } else if(query_int == 6) {
                     int store_request_id = request_id++;
                     sprintf(outp, "[REQUEST #%d]  New stats-command request\n", store_request_id);
                     write(1, &outp, strlen(outp));
@@ -649,17 +672,26 @@ int main(int argc, char* argv[]){
                     int tot_size = strlen(outp);
                     write(fd_serverClient, &tot_size, sizeof(int));
                     write(fd_serverClient, &outp, tot_size);
-                    
-                    sprintf(outp, "[REQUEST #%d]  Ended stats-command\n", store_request_id);
+
+                    /* int resf = fork();
+                    if(resf == -1){
+                        perror("Error creating child process to handle Stats-command request");
+                        exit(-1);
+                    }
+                    else if(resf == 0){
+                        _exit(0);
+                    } */
+
+                    sprintf(outp, "[REQUEST #%d]  Ended stats-command request\n", store_request_id);
                     write(1, &outp, strlen(outp));
 
 
                 //! STATS-UNIQ
-                } else if(query_int == 6) {
+                } else if(query_int == 7) {
                     int store_request_id = request_id++;
                     sprintf(outp, "[REQUEST #%d]  New stats-uniq request\n", store_request_id);
                     write(1, &outp, strlen(outp));
-                    
+
                     //verificar se há algum programa que já acabou
                     //int sizell = size_llfin();
                     //write(fd_serverClient, &sizell, sizeof(int));
@@ -678,23 +710,31 @@ int main(int argc, char* argv[]){
                         //printf("pids received: %d\n", pids[i]);
                     }
                     
-                    int total_time = search_uniq_finished(pids, pids_size);
+                    int total_uniq = search_uniq_finished(pids, pids_size);
 
                     //enviar string de output
-                    sprintf(outp, "Uniq Progs Number: %d\n", total_time);
+                    sprintf(outp, "Uniq Progs Number: %d\n", total_uniq);
                     int tot_size = strlen(outp);
                     write(fd_serverClient, &tot_size, sizeof(int));
                     write(fd_serverClient, &outp, tot_size);
-                    //}
 
-                    sprintf(outp, "[REQUEST #%d]  Ended stats-uniq\n", store_request_id);
+                    /* int resf = fork();
+                    if(resf == -1){
+                        perror("Error creating child process to handle Stats-uniq request");
+                        exit(-1);
+                    }
+                    else if(resf == 0){
+                        _exit(0);
+                    } */
+                    
+                    sprintf(outp, "[REQUEST #%d]  Ended stats-uniq request\n", store_request_id);
                     write(1, &outp, strlen(outp));
                 }
             }
         }
     }
     
-    //close(fd_clientServer);
+    close(fd_clientServer);
     unlink(fifoname);
     return 0;
 }
