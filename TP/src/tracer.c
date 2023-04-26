@@ -535,5 +535,6 @@ int main(int argc, char *argv[]) {
         write(1, outp, strlen(outp));
     }
 
+    unlink(fifoname_read);
     return 0;
 }
