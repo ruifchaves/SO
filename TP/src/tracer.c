@@ -232,14 +232,7 @@ int execute_pipeline(char *command) {
 
     if (exitid == num_progs) {
         gettimeofday(&end, NULL);
-        long elapsed_time = calculate_elapsed_time(start, end);
-
-        // Informar o Servidor: PID e timestamp final
-        write(fd_clientServer, &resf, sizeof(int));
-        write(fd_clientServer, &end, sizeof(struct timeval));
-        // Informar o Ciente: Tempo de Execução
-        sprintf(outp, "Ended in %ld ms\n", elapsed_time);
-        write(1, &outp, strlen(outp));
+        execute_end(resf, start, end);
     }
 
     // Fechar file descriptors e libertar memória
