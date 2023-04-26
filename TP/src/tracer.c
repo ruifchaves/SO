@@ -306,7 +306,17 @@ int stats_time(int *pids, int pids_size) {
     if (fd_serverClient == -1) {
         perror("Error opening Server->Client pipe to read");
         exit(-1);
+    }    
+
+
+    char fifo_execute_args[100];
+    sprintf(fifo_execute_args, "../tmp/%d", getpid());
+    int fd_tmp = open(fifo_execute_args, O_WRONLY);
+    if (fd_tmp == -1) {
+        perror("Error opening temporary Client->Server pipe to write stats-time pids");
+        exit(-1);
     }
+
 
     // TODO
     // Receber num de progs terminados
@@ -323,9 +333,9 @@ int stats_time(int *pids, int pids_size) {
     //} else {
 
     // Enviar quantidade de pids passados como argumento e os seus valores
-    write(fd_clientServer, &pids_size, sizeof(int));
+    write(fd_tmp, &pids_size, sizeof(int));
     for (int i = 0; i < pids_size; i++)
-        write(fd_clientServer, &pids[i], sizeof(int));
+        write(fd_tmp, &pids[i], sizeof(int));
 
     // Caso haja programas terminados. receber o tempo total de execução dos mesmos em ms
     int tot_size;
