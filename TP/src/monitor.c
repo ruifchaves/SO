@@ -64,7 +64,7 @@ void add_to_file_finished(int pid, char* folder){
 
     char folder_file[100];
     sprintf(folder_file, "%s%d.txt", fin_dir, pid);
-    int open_res = open(folder_file, O_CREAT | O_WRONLY, 0660);
+    int open_res = open(folder_file, O_CREAT | O_TRUNC | O_WRONLY, 0660);
     if (open_res < 0){
         perror("Error opening file that stores information of finished execution");
         exit(-1);
@@ -709,14 +709,7 @@ int main(int argc, char* argv[]){
                         pids[i] = tmp;
                         //printf("pids received: %d\n", pids[i]);
                     }
-                    
-                    int total_uniq = search_uniq_finished(pids, pids_size);
-
-                    //enviar string de output
-                    sprintf(outp, "Uniq Progs Number: %d\n", total_uniq);
-                    int tot_size = strlen(outp);
-                    write(fd_serverClient, &tot_size, sizeof(int));
-                    write(fd_serverClient, &outp, tot_size);
+                
 
                     /* int resf = fork();
                     if(resf == -1){
@@ -726,6 +719,126 @@ int main(int argc, char* argv[]){
                     else if(resf == 0){
                         _exit(0);
                     } */
+
+                    int total_time = 0;
+                    int status;
+                    char outp[100];
+                    char file_in[sizeof(struct exec)];
+                    char uniq_progs[pids_size][90];
+
+                    int pipes[pids_size][2];
+
+                    // Criar pipes para cada processo filho
+                    for (int i = 0; i < pids_size; i++) {
+                        if (pipe(pipes[i]) == -1) {
+                            sprintf(outp, "Error creating pipe #%d", i+1);
+                            perror(outp);
+                            return -1;
+                        }
+                    }
+
+                    // Fazer tantos fork quanto os pids passados como argumento
+                    for (int i = 0; i < pids_size; i++) {
+                        int resf = fork();
+                        if (resf == -1) {
+                            sprintf(outp, "Error in fork #%d", i+1);
+                            perror(outp);
+                            return -1;
+                        } 
+                        
+                        else if (resf == 0) {
+                            // Filho vai escrever no pipe o nome do programa
+                            close(pipes[i][0]);
+                            char folder_file[100];
+                            sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
+                            int res_open = open(folder_file, O_RDONLY, 0660);
+                            if (res_open < 0) {
+                                sprintf(outp, "Error opening file %d", pids[i]);
+                                perror(outp);
+                                int aux = 0;
+                                write(pipes[i][1], &aux, sizeof(int));
+                                close(pipes[i][1]);
+                                _exit(-1);
+                            }
+
+                            struct exec file_exec;
+                            read(res_open, &file_exec, sizeof(struct exec));
+                            char prog_name[100];
+                            strcpy(prog_name, file_exec.prog_name);
+
+                            close(res_open);
+
+                            int prog_name_size = strlen(prog_name);
+                            write(pipes[i][1], &prog_name_size, sizeof(int));
+                            write(pipes[i][1], prog_name, prog_name_size);
+
+                            close(pipes[i][1]);
+                            _exit(0);
+                        }
+                    }
+
+                    // Esperar que todos os processos filho terminem
+                    for (int i = 0; i < pids_size; i++) {
+                        if (wait(&status) == -1) {
+                            sprintf(outp, "Error in waiting for child process");
+                            perror(outp);
+                            return -1;
+                        }
+                    }
+
+                    // Ler nomes dos programas dos pipes e guardar os únicos
+                    int uniq_size = 0;
+                    for (int i = 0; i < pids_size; i++) {
+                        close(pipes[i][1]);
+                        int prog_rec_size;
+                        char prog_received[100];
+                        if (read(pipes[i][0], &prog_rec_size, sizeof(int)) != 0) {
+                            read(pipes[i][0], prog_received, prog_rec_size);
+                            prog_received[prog_rec_size] = '\0'; // Making sure que a string é null terminated
+                            int idx;
+                            for (idx = 0; idx < uniq_size && strcmp(uniq_progs[idx], prog_received) != 0; idx++);
+                            if (idx == uniq_size) {
+                                strcpy(uniq_progs[idx], prog_received);
+                                uniq_size++;
+                            }
+                        }
+                        close(pipes[i][0]);
+                    }
+
+                    //DEBUG
+                    for (int i = 0; i < uniq_size; i++) printf("uniq[%d] %s\n", i, uniq_progs[i]);
+
+
+                    write(fd_serverClient, &uniq_size, sizeof(int));
+                    for(int i = 0; i < uniq_size; i++){
+                        sprintf(outp, "%s\n", uniq_progs[i]);
+                        int outp_size = strlen(outp);
+                        //write(1, outp, outp_size);
+                        write(1, &outp_size, sizeof(int));
+                        write(fd_serverClient, &outp_size, sizeof(int));
+                        write(fd_serverClient, outp, outp_size);
+                    }
+
+
+
+
+                    int total_uniq = search_uniq_finished(pids, pids_size);
+                    //enviar string de output
+                    sprintf(outp, "Uniq Progs Number: %d\n", total_uniq);
+                    int tot_size = strlen(outp);
+                    write(fd_serverClient, &tot_size, sizeof(int));
+                    write(fd_serverClient, &outp, tot_size);
+/*                     write(fd_serverClient, &uniq_size, sizeof(int));
+                    for(int i = 0; i < uniq_size; i++){
+                        sprintf(outp, "%s\n", uniq_progs[i]);
+                        int outp_size = strlen(outp);
+                        //write(1, outp, outp_size);
+                        write(1, &outp_size, sizeof(int));
+                        write(fd_serverClient, &outp_size, sizeof(int));
+                        write(fd_serverClient, outp, outp_size);
+                    }
+    */
+
                     
                     sprintf(outp, "[REQUEST #%d]  Ended stats-uniq request\n", store_request_id);
                     write(1, &outp, strlen(outp));

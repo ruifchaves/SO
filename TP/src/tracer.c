@@ -446,7 +446,17 @@ int stats_uniq(int *pids, int pids_size) {
     char str[tot_size];
     read(fd_serverClient, &str, tot_size);
     write(1, &str, tot_size);
-    //}
+
+
+/*     int tot_size;
+    read(fd_serverClient, &tot_size, sizeof(int));
+    for(int i = 0; i < tot_size; i++){
+        int tmp_size;
+        read(fd_serverClient, &tmp_size, sizeof(int));
+        char tmp[tmp_size];
+        read(fd_serverClient, &tmp, tmp_size);
+        write(1, &tmp, tot_size);
+    } */
 
     return 0;
 }
