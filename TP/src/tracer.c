@@ -439,24 +439,24 @@ int stats_uniq(int *pids, int pids_size) {
     for (int i = 0; i < pids_size; i++)
         write(fd_clientServer, &pids[i], sizeof(int));
 
-    // TODO Receber nomes dos programas únicos executados pelos pids argumento
-    // Receber num de progs únicos
+
     int tot_size;
-    read(fd_serverClient, &tot_size, sizeof(int));
-    char str[tot_size];
-    read(fd_serverClient, &str, tot_size);
-    write(1, &str, tot_size);
-
-
-/*     int tot_size;
     read(fd_serverClient, &tot_size, sizeof(int));
     for(int i = 0; i < tot_size; i++){
         int tmp_size;
         read(fd_serverClient, &tmp_size, sizeof(int));
         char tmp[tmp_size];
         read(fd_serverClient, &tmp, tmp_size);
-        write(1, &tmp, tot_size);
-    } */
+        write(1, &tmp, tmp_size);
+    }
+
+    // TODO Receber nomes dos programas únicos executados pelos pids argumento
+    // Receber num de progs únicos
+    //int tot_size;
+    //read(fd_serverClient, &tot_size, sizeof(int));
+    //char str[tot_size];
+    //read(fd_serverClient, &str, tot_size);
+    //write(1, &str, tot_size);
 
     return 0;
 }
