@@ -502,7 +502,7 @@ int main(int argc, char* argv[]){
 
         // Abrir o pipe criado
         fd_clientServer = open(fifoname, O_RDONLY);
-        if(fd_clientServer == -1){
+        if(fd_clientServer == -1) {
             perror("Error opening Client->Server pipe to read");
             exit(-1);
         }
@@ -534,6 +534,7 @@ int main(int argc, char* argv[]){
 
                     //exec* prog_exec = newExec(pid, prog_name, start);
                     add_exec(pid, prog_name, start);
+                    print_llexec();
                 }
                 //! EXECUTE END
                 else if (query.query_int == 3) {
@@ -585,152 +586,165 @@ int main(int argc, char* argv[]){
                     perror("Error opening Server->Client pipe to write");
                     exit(-1);
                 }
-                
-                //! STATUS
-                if(query.query_int == 4) {
-                    int store_request_id = request_id++;
-                    sprintf(outp, "[REQUEST #%d]  New status request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
-
-                    int resf = fork();
-                    if(resf == -1){
-                        perror("Error creating child process to handle Status request");
-                        exit(-1);
-                    }
-                    else if(resf == 0){
-
-                        //verificar se há algum programa em execução
-                        int sizell = size_llexec();
-                        write(fd_serverClient, &sizell, sizeof(int));
-                        if(sizell == 0){
-                            sprintf(outp, "[STATUS]      That aren't any programs currently running\n");
-                            write(1, &outp, strlen(outp));
-                            exit(0); //TODO fecha o processo child?
-                        }
-
-                        for(llexec* tmp = currExecs; tmp != NULL; tmp=tmp->next){
-                            struct timeval til_now;
-                            gettimeofday(&til_now, NULL);
-                            struct timeval start = tmp->exec_info.start;
-
-                            long elapsed_time = calculate_elapsed_time(start, til_now);
-                            sprintf(outp, "%d   %s   %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, elapsed_time);
-                            int exec_size = strlen(outp);
-                            write(fd_serverClient, &exec_size, sizeof(int));
-                            write(fd_serverClient, &outp, exec_size);
-                        }
-                        //print_llexec(); //debug
-                        //print_llfin();  //debug
-                        _exit(0);
-                    }
-                    
-                    sprintf(outp, "[REQUEST #%d]  Ended status request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
-
-
-                //! STATS-TIME
-                } else if(query.query_int == 5) {
-                    int store_request_id = request_id++;
-                    sprintf(outp, "[REQUEST #%d]  New stats-time request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
-                    
-                    //verificar se há algum programa que já acabou
-                    //int sizell = size_llfin();
-                    //write(fd_serverClient, &sizell, sizeof(int));
-                    //if(sizell == 0){
-                    //    sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
-                    //    write(1, &outp, strlen(outp));
-                    //} else {
-                    
-                    
-                    //ler pids e pids_size
-                    int pids_search_size = query.pids_search_size;  
-                    int pids_search[100];
-                    
-                    for(int i = 0; i < pids_search_size; i++){
-                        pids_search[i] = query.pids_search[i];
-                        printf("pids_search[%d]: %d\n", i, pids_search[i]);
-                    }
-                    
-                    //calcular tempo total
-                    int total_time = search_time_finished(pids_search, pids_search_size);
-
-                    //enviar string de output
-                    sprintf(outp, "Total execution time is %d ms\n", total_time);
-                    int tot_size = strlen(outp);
-                    write(fd_serverClient, &tot_size, sizeof(int));
-                    write(fd_serverClient, &outp, tot_size);
-                    write(1, &outp, tot_size);
-
-
-                    sprintf(outp, "[REQUEST #%d]  Ended stats-time request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
-
-
-                //! STATS-COMMAND
-                } else if(query.query_int == 6) {
-                    int store_request_id = request_id++;
-                    sprintf(outp, "[REQUEST #%d]  New stats-command request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
-
-                    //ler nome do programa
-                    char prog_name[100];
-                    strcpy(prog_name, query.prog_name);
-
-                    //ler pids e pids_size
-                    int pids_search_size = query.pids_search_size;  
-                    int pids_search[100];
-                    
-                    for(int i = 0; i < pids_search_size; i++){
-                        pids_search[i] = query.pids_search[i];
-                        printf("pids_search[%d]: %d\n", i, pids_search[i]);
-                    }
-                    
-
-                    //calcular numero de vezes total
-                    int total_execs_prog = search_command_finished(pids_search, pids_search_size, prog_name);
-
-                    //enviar string de output
-                    sprintf(outp, "%s was executed %d times\n", prog_name, total_execs_prog);
-                    int tot_size = strlen(outp);
-                    write(fd_serverClient, &tot_size, sizeof(int));
-                    write(fd_serverClient, &outp, tot_size);
-
-                    sprintf(outp, "[REQUEST #%d]  Ended stats-command request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
-
-
-                //! STATS-UNIQ
-                } else if(query.query_int == 7) {
-                    int store_request_id = request_id++;
-                    sprintf(outp, "[REQUEST #%d]  New stats-uniq request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
-
-                    //verificar se há algum programa que já acabou
-                    //int sizell = size_llfin();
-                    //write(fd_serverClient, &sizell, sizeof(int));
-                    //if(sizell == 0){
-                    //    sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
-                    //    write(1, &outp, strlen(outp));
-                    //} else {
-                    
-                    
-                    //ler pids e pids_size
-                    int pids_search_size = query.pids_search_size;  
-                    int pids_search[100];
-                    
-                    for(int i = 0; i < pids_search_size; i++){
-                        pids_search[i] = query.pids_search[i];
-                        printf("pids_search[%d]: %d\n", i, pids_search[i]);
-                    }
-                    
-
-                    search_uniq_finished(pids_search, pids_search_size, fd_serverClient);
-                    
-                    sprintf(outp, "[REQUEST #%d]  Ended stats-uniq request\n", store_request_id);
-                    write(1, &outp, strlen(outp));
+                int resf = fork();
+                if (resf == -1) {
+                    perror("Error in fork");
+                    return -1;
                 }
-                
+                else if (resf == 0) {
+
+                    //! STATUS
+                    if (query.query_int == 4)
+                    {
+                        int store_request_id = request_id++;
+                        sprintf(outp, "[REQUEST #%d]  New status request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+
+                        int resf = fork();
+                        if (resf == -1)
+                        {
+                            perror("Error creating child process to handle Status request");
+                            exit(-1);
+                        }
+                        else if (resf == 0)
+                        {
+
+                            // verificar se há algum programa em execução
+                            int sizell = size_llexec();
+                            write(fd_serverClient, &sizell, sizeof(int));
+                            if (sizell == 0)
+                            {
+                                sprintf(outp, "[STATUS]      That aren't any programs currently running\n");
+                                write(1, &outp, strlen(outp));
+                                exit(0); // TODO fecha o processo child?
+                            }
+
+                            for (llexec *tmp = currExecs; tmp != NULL; tmp = tmp->next)
+                            {
+                                struct timeval til_now;
+                                gettimeofday(&til_now, NULL);
+                                struct timeval start = tmp->exec_info.start;
+
+                                long elapsed_time = calculate_elapsed_time(start, til_now);
+                                sprintf(outp, "%d   %s   %ld ms\n", tmp->exec_info.pid, tmp->exec_info.prog_name, elapsed_time);
+                                int exec_size = strlen(outp);
+                                write(fd_serverClient, &exec_size, sizeof(int));
+                                write(fd_serverClient, &outp, exec_size);
+                            }
+                            // print_llexec(); //debug
+                            // print_llfin();  //debug
+                            _exit(0);
+                        }
+
+                        sprintf(outp, "[REQUEST #%d]  Ended status request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+
+                        //! STATS-TIME
+                    }
+                    else if (query.query_int == 5)
+                    {
+                        int store_request_id = request_id++;
+                        sprintf(outp, "[REQUEST #%d]  New stats-time request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+
+                        // verificar se há algum programa que já acabou
+                        // int sizell = size_llfin();
+                        // write(fd_serverClient, &sizell, sizeof(int));
+                        // if(sizell == 0){
+                        //     sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
+                        //     write(1, &outp, strlen(outp));
+                        // } else {
+
+                        // ler pids e pids_size
+                        int pids_search_size = query.pids_search_size;
+                        int pids_search[100];
+
+                        for (int i = 0; i < pids_search_size; i++)
+                        {
+                            pids_search[i] = query.pids_search[i];
+                            printf("pids_search[%d]: %d\n", i, pids_search[i]);
+                        }
+
+                        // calcular tempo total
+                        int total_time = search_time_finished(pids_search, pids_search_size);
+
+                        // enviar string de output
+                        sprintf(outp, "Total execution time is %d ms\n", total_time);
+                        int tot_size = strlen(outp);
+                        write(fd_serverClient, &tot_size, sizeof(int));
+                        write(fd_serverClient, &outp, tot_size);
+                        write(1, &outp, tot_size);
+
+                        sprintf(outp, "[REQUEST #%d]  Ended stats-time request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+
+                        //! STATS-COMMAND
+                    }
+                    else if (query.query_int == 6)
+                    {
+                        int store_request_id = request_id++;
+                        sprintf(outp, "[REQUEST #%d]  New stats-command request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+
+                        // ler nome do programa
+                        char prog_name[100];
+                        strcpy(prog_name, query.prog_name);
+
+                        // ler pids e pids_size
+                        int pids_search_size = query.pids_search_size;
+                        int pids_search[100];
+
+                        for (int i = 0; i < pids_search_size; i++)
+                        {
+                            pids_search[i] = query.pids_search[i];
+                            printf("pids_search[%d]: %d\n", i, pids_search[i]);
+                        }
+
+                        // calcular numero de vezes total
+                        int total_execs_prog = search_command_finished(pids_search, pids_search_size, prog_name);
+
+                        // enviar string de output
+                        sprintf(outp, "%s was executed %d times\n", prog_name, total_execs_prog);
+                        int tot_size = strlen(outp);
+                        write(fd_serverClient, &tot_size, sizeof(int));
+                        write(fd_serverClient, &outp, tot_size);
+
+                        sprintf(outp, "[REQUEST #%d]  Ended stats-command request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+
+                        //! STATS-UNIQ
+                    }
+                    else if (query.query_int == 7)
+                    {
+                        int store_request_id = request_id++;
+                        sprintf(outp, "[REQUEST #%d]  New stats-uniq request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+
+                        // verificar se há algum programa que já acabou
+                        // int sizell = size_llfin();
+                        // write(fd_serverClient, &sizell, sizeof(int));
+                        // if(sizell == 0){
+                        //     sprintf(outp, "[STATS_TIME]  That aren't any programs that have already finished\n");
+                        //     write(1, &outp, strlen(outp));
+                        // } else {
+
+                        // ler pids e pids_size
+                        int pids_search_size = query.pids_search_size;
+                        int pids_search[100];
+
+                        for (int i = 0; i < pids_search_size; i++)
+                        {
+                            pids_search[i] = query.pids_search[i];
+                            printf("pids_search[%d]: %d\n", i, pids_search[i]);
+                        }
+
+                        search_uniq_finished(pids_search, pids_search_size, fd_serverClient);
+
+                        sprintf(outp, "[REQUEST #%d]  Ended stats-uniq request\n", store_request_id);
+                        write(1, &outp, strlen(outp));
+                    }
+                    _exit(0);
+                }
                 close(fd_serverClient);
             }
         }

@@ -11,9 +11,12 @@ char fifoname_read[50];
 int execute_end(struct exec query, struct timeval start, struct timeval end) {
     char outp[100];
 
+    //printf("query: %d\n", query.pid_pai);
+
     // Enviar prog id para o servidor
     query.query_int = 3;
     query.end = end;
+    //printf("query: %d\n", query.pid_pai);
 
     write(fd_clientServer, &query, sizeof(struct exec));
 
