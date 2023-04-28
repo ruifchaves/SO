@@ -2,27 +2,27 @@
 
 int fd_clientServer;
 int fd_serverClient;
+int pid_pai;
 char fifoname_write[50];
 char fifoname_read[50];
 
 
 //! EXECUTE END
-int execute_end(int pid, struct timeval start, struct timeval end) {
+int execute_end(struct exec query, struct timeval start, struct timeval end) {
     char outp[100];
 
     // Enviar prog id para o servidor
-    int query_int = 3;
-    write(fd_clientServer, &query_int, sizeof(int));
+    query.query_int = 3;
+    query.end = end;
 
-    // Informar o Servidor: PID e timestamp final
-    write(fd_clientServer, &pid, sizeof(int));
-    write(fd_clientServer, &end, sizeof(struct timeval));
+    write(fd_clientServer, &query, sizeof(struct exec));
 
     long elapsed_time = calculate_elapsed_time(start, end);
 
     // Informar o Ciente: Tempo de Execução
     sprintf(outp, "Ended in %ld ms\n", elapsed_time); // secs to ms
     write(1, &outp, strlen(outp));
+    close(fd_clientServer);
     return 0;
 }
 
@@ -37,7 +37,8 @@ int execute_single(char *command) {
     char *exec_args[32];
     int res_exec;
     char fifo_outp[100], outp[100];
-    struct timeval start, end;
+    struct timeval start;
+    struct timeval end;
     double cpu_time_used;
     int wait_result, res, status;
 
@@ -64,16 +65,13 @@ int execute_single(char *command) {
         _exit(res_exec);
     }
     else {
+
+        struct exec tmp = {1, pid_pai, resf, "", start, {0}, {0}, 0};
+        strcpy(tmp.prog_name, command_copy);
+        write(fd_clientServer, &tmp, sizeof(struct exec));
         // Enviar prog id para o servidor
-        int query_int = 1;
-        write(fd_clientServer, &query_int, sizeof(int));
-        
         // Informar o Servidor: PID. nome do programa e timestamp inicial
-        write(fd_clientServer, &resf, sizeof(int));
-        int prog_name_size = strlen(command_copy);
-        write(fd_clientServer, &prog_name_size, sizeof(int));
-        write(fd_clientServer, command_copy, prog_name_size);
-        write(fd_clientServer, &start, sizeof(struct timeval));
+
 
         // Informar o cliente: PID
         sprintf(outp, "Running PID %d\n", resf);
@@ -85,7 +83,7 @@ int execute_single(char *command) {
             res = WEXITSTATUS(status); //TODO adicionar feedback de erro
             gettimeofday(&end, NULL);
 
-            execute_end(resf, start, end);
+            execute_end(tmp, start, end);
         }
         else {
             perror("Error in waitpid or child process");
@@ -160,6 +158,7 @@ int execute_pipeline(char *command) {
         }
     }
     
+
     // Enviar prog id para o servidor
     int query_int = 2;
     write(fd_clientServer, &query_int, sizeof(int));
@@ -211,17 +210,20 @@ int execute_pipeline(char *command) {
         close(pipes[i][1]);
     }
 
+    
+    struct exec tmp;
     // Esperar que todos os processos filho terminem
     int exitid;
     for (exitid = 0; exitid < num_progs; exitid++) {
         int status, fst_pid;
         if (exitid == 0) {
+
+
             // Informar o Servidor: Primeiro PID e timestamp inicial
-            write(fd_clientServer, &resf, sizeof(int));
-            int prog_name_size = strlen(command_copy);
-            write(fd_clientServer, &prog_name_size, sizeof(int));
-            write(fd_clientServer, command_copy, prog_name_size);
-            write(fd_clientServer, &start, sizeof(struct timeval));
+            tmp = (exec) {2, pid_pai, pids[0], "", start, {0}, {0}, 0};
+            strcpy(tmp.prog_name, command_copy);
+            write(fd_clientServer, &tmp, sizeof(struct exec));
+
 
             // Informar o cliente: PID
             sprintf(outp, "Running PID %d\n", resf);
@@ -232,12 +234,11 @@ int execute_pipeline(char *command) {
 
     if (exitid == num_progs) {
         gettimeofday(&end, NULL);
-        execute_end(resf, start, end);
+        execute_end(tmp, start, end);
     }
 
     // Fechar file descriptors e libertar memória
     free(command_copy);
-    close(fd_clientServer);
     return 0;
 }
 
@@ -251,12 +252,9 @@ int status() {
     char outp[300];
 
     // Enviar prog id para o servidor
-    int query_int = 4;
-    write(fd_clientServer, &query_int, sizeof(int));
 
-    // Enviar pid para abrir Servidor->Cliente deste pid
-    int pid = getpid();
-    write(fd_clientServer, &pid, sizeof(int));
+    struct exec tmp = {4, pid_pai, pid_pai, "", {0}, {0}, {0}, 0};
+    write(fd_clientServer, &tmp, sizeof(struct exec));
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -293,13 +291,13 @@ Total execution time is 1000 ms */
 int stats_time(int *pids, int pids_size) {
     char outp[300];
 
-    // Enviar prog id para o servidor
-    int query_int = 5;
-    write(fd_clientServer, &query_int, sizeof(int));
 
-    // Enviar pid para abrir Servidor->Cliente deste pid
-    int pid = getpid();
-    write(fd_clientServer, &pid, sizeof(int));
+    struct exec tmp = {5, pid_pai, pid_pai, "", {0}, {0}, {0}, pids_size};
+    for (int i = 0; i < pids_size; i++) {
+        tmp.pids_search[i] = pids[i];
+    }
+    write(fd_clientServer, &tmp, sizeof(struct exec));
+
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -322,18 +320,12 @@ int stats_time(int *pids, int pids_size) {
             exit(0); */
     //} else {
 
-    // Enviar quantidade de pids passados como argumento e os seus valores
-    write(fd_clientServer, &pids_size, sizeof(int));
-    for (int i = 0; i < pids_size; i++)
-        write(fd_clientServer, &pids[i], sizeof(int));
-
     // Caso haja programas terminados. receber o tempo total de execução dos mesmos em ms
     int tot_size;
     read(fd_serverClient, &tot_size, sizeof(int));
     char str[tot_size];
     read(fd_serverClient, &str, tot_size);
     write(1, &str, tot_size);
-    //}
 
     return 0;
 }
@@ -345,13 +337,14 @@ Prog-a was executed 4 times */
 int stats_command(char *command, int *pids, int pids_size) {
     char outp[300];
 
-    // Enviar prog id para o servidor
-    int query_int = 6;
-    write(fd_clientServer, &query_int, sizeof(int));
 
-    // Enviar pid para abrir Servidor->Cliente deste pid
-    int pid = getpid();
-    write(fd_clientServer, &pid, sizeof(int));
+    struct exec tmp = {6, pid_pai, pid_pai, "", {0}, {0}, {0}, pids_size};
+    for (int i = 0; i < pids_size; i++) {
+        tmp.pids_search[i] = pids[i];
+    }
+    strcpy(tmp.prog_name, command);
+
+    write(fd_clientServer, &tmp, sizeof(struct exec));
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -374,16 +367,6 @@ int stats_command(char *command, int *pids, int pids_size) {
             exit(0); */
     //} else {
 
-    // Enviar nome do comando a pesquisar
-    int command_size = strlen(command);
-    command[command_size] = '\0';
-    write(fd_clientServer, &command_size, sizeof(int));
-    write(fd_clientServer, command, command_size+1);
-
-    // Enviar quantidade de pids passados como argumento e os seus valores
-    write(fd_clientServer, &pids_size, sizeof(int));
-    for (int i = 0; i < pids_size; i++)
-        write(fd_clientServer, &pids[i], sizeof(int));
 
     // Receber num de vezes que o commando executou
     int tot_size;
@@ -391,7 +374,6 @@ int stats_command(char *command, int *pids, int pids_size) {
     char str[tot_size];
     read(fd_serverClient, &str, tot_size);
     write(1, &str, tot_size);
-    //}
 
     return 0;
 }
@@ -405,13 +387,11 @@ prog-h */
 int stats_uniq(int *pids, int pids_size) {
     char outp[300];
 
-    // Enviar prog id para o servidor
-    int query_int = 7;
-    write(fd_clientServer, &query_int, sizeof(int));
-
-    // Enviar pid para abrir Servidor->Cliente deste pid
-    int pid = getpid();
-    write(fd_clientServer, &pid, sizeof(int));   
+    struct exec tmp = {7, pid_pai, pid_pai, "", {0}, {0}, {0}, pids_size};
+    for (int i = 0; i < pids_size; i++) {
+        tmp.pids_search[i] = pids[i];
+    }
+    write(fd_clientServer, &tmp, sizeof(struct exec));
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -434,12 +414,6 @@ int stats_uniq(int *pids, int pids_size) {
             exit(0); */
     //} else {
 
-    // enviar pids e pids_size
-    write(fd_clientServer, &pids_size, sizeof(int));
-    for (int i = 0; i < pids_size; i++)
-        write(fd_clientServer, &pids[i], sizeof(int));
-
-
     int tot_size;
     read(fd_serverClient, &tot_size, sizeof(int));
     for(int i = 0; i < tot_size; i++){
@@ -449,14 +423,6 @@ int stats_uniq(int *pids, int pids_size) {
         read(fd_serverClient, &tmp, tmp_size);
         write(1, &tmp, tmp_size);
     }
-
-    // TODO Receber nomes dos programas únicos executados pelos pids argumento
-    // Receber num de progs únicos
-    //int tot_size;
-    //read(fd_serverClient, &tot_size, sizeof(int));
-    //char str[tot_size];
-    //read(fd_serverClient, &str, tot_size);
-    //write(1, &str, tot_size);
 
     return 0;
 }
@@ -487,6 +453,8 @@ int main(int argc, char *argv[]) {
         write(1, outp, strlen(outp));
         exit(-1);
     }
+
+    pid_pai = getpid();
 
     // Abrir fifo Cliente -> Servidor
     sprintf(fifoname_write, "../tmp/%s", fifo_cliSer);

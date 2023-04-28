@@ -14,9 +14,14 @@
 #include <ctype.h>     //isspace
 
 typedef struct exec {
+    int query_int;
+    int pid_pai;
     int pid;
     char prog_name[100];
-    struct timeval start, end;
+    struct timeval start;
+    struct timeval end;
+    int pids_search[100];
+    int pids_search_size;
 } exec;
 
 #define fifo_cliSer "fifo_client_server"

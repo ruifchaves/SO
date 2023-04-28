@@ -195,6 +195,13 @@ int ex5(){
 //de grep -v ˆ# /etc/passwd | cut -f7 -d: | uniq | wc -l
 int ex6(){
 
+    int p[2];
+    pipes(p);
+    
+    int resf = fork();
+    if(resf == 0){
+
+    }
     return 0;
 }
 
