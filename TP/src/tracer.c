@@ -162,10 +162,6 @@ int execute_pipeline(char *command) {
     }
     
 
-    // Enviar prog id para o servidor
-    int query_int = 2;
-    write(fd_clientServer, &query_int, sizeof(int));
-
     // Fazer um fork para executar cada comando da pipeline
     int pids[num_progs];
     for (int forkid = 0; forkid < num_progs; forkid++) {
@@ -229,7 +225,7 @@ int execute_pipeline(char *command) {
 
 
             // Informar o cliente: PID
-            sprintf(outp, "Running PID %d\n", resf);
+            sprintf(outp, "Running PID %d\n", pids[0]);
             write(1, &outp, strlen(outp));
         }
         waitpid(pids[exitid], &status, 0);

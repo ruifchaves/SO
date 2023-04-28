@@ -596,7 +596,7 @@ int main(int argc, char* argv[]){
                     //! STATUS
                     if (query.query_int == 4)
                     {
-                        int store_request_id = request_id++;
+                        int store_request_id = request_id;
                         sprintf(outp, "[REQUEST #%d]  New status request\n", store_request_id);
                         write(1, &outp, strlen(outp));
 
@@ -712,8 +712,8 @@ int main(int argc, char* argv[]){
                         sprintf(outp, "[REQUEST #%d]  Ended stats-command request\n", store_request_id);
                         write(1, &outp, strlen(outp));
 
-                        //! STATS-UNIQ
-                    }
+                        
+                    } //! STATS-UNIQ
                     else if (query.query_int == 7)
                     {
                         int store_request_id = request_id++;
@@ -745,6 +745,8 @@ int main(int argc, char* argv[]){
                     }
                     _exit(0);
                 }
+                unlink(fifo_name);
+                request_id++;
                 close(fd_serverClient);
             }
         }
