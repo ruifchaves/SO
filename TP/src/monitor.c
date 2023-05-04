@@ -175,7 +175,8 @@ int search_time_finished(int* pids, int pids_size, int request_id){
     // Criar pipe para processo filho
     int p[2];
     if (pipe(p) == -1) {
-        perror("Error creating pipe");
+        sprintf(outp, "[REQUEST #%d]  Error creating pipe", request_id);
+        perror(outp);
         return -1;
     }
 
@@ -184,7 +185,7 @@ int search_time_finished(int* pids, int pids_size, int request_id){
     for (int i = 0; i < pids_size; i++) {
         int resf = fork();
         if (resf == -1) {
-            sprintf(outp, "Error in fork #%d", i+1);
+            sprintf(outp, "[REQUEST #%d]  Error in fork #%d", request_id, i+1);
             perror(outp);
             return -1;
         }
@@ -195,7 +196,7 @@ int search_time_finished(int* pids, int pids_size, int request_id){
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
             int res_open = open(folder_file, O_RDONLY, 0660);
             if(res_open < 0){
-                sprintf(outp, "Error opening file %d", pids[i]);
+                sprintf(outp, "[REQUEST #%d]  Error opening file %d", request_id, pids[i]);
                 perror(outp);
                 int error_add_zero = 0;
                 write(p[1], &error_add_zero, sizeof(int));
@@ -221,7 +222,7 @@ int search_time_finished(int* pids, int pids_size, int request_id){
     // Esperar que todos os processos filho terminem
     for (int i = 0; i < pids_size; i++) {
         if (wait(&status) == -1) {
-            sprintf(outp, "Error in waiting for child process");
+            sprintf(outp, "[REQUEST #%d]  Error in waiting for child process", request_id);
             perror(outp);
             return -1;
         }
@@ -238,7 +239,7 @@ int search_time_finished(int* pids, int pids_size, int request_id){
 
 
 //! STATS-COMMAND
-int search_command_finished(int* pids, int pids_size, char* command){
+int search_command_finished(int* pids, int pids_size, char* command, int request_id){
     int total_time = 0;
     int status;
     char outp[100];
@@ -247,7 +248,8 @@ int search_command_finished(int* pids, int pids_size, char* command){
     // Criar pipe para processo filho
     int pipes[2];
     if (pipe(pipes) == -1) {
-        perror("Error creating pipe");
+        sprintf(outp, "[REQUEST #%d]  Error creating pipe", request_id);
+        perror(outp);
         return -1;
     }
 
@@ -256,7 +258,7 @@ int search_command_finished(int* pids, int pids_size, char* command){
     for (int i = 0; i < pids_size; i++) {
         int resf = fork();
         if (resf == -1){
-            sprintf(outp, "Error in fork #%d", i+1);
+            sprintf(outp, "[REQUEST #%d]  Error in fork #%d", request_id, i+1);
             perror(outp);
             return -1;
         } 
@@ -266,14 +268,14 @@ int search_command_finished(int* pids, int pids_size, char* command){
             sprintf(folder_file, "%s%d.txt", fin_dir, pids[i]);
             int res_open = open(folder_file, O_RDONLY, 0660);
             if(res_open < 0){
-                sprintf(outp, "Error opening file %d", pids[i]);
+                sprintf(outp, "[REQUEST #%d]  Error opening file %d", request_id, pids[i]);
                 perror(outp);
                 _exit(0);
             }
 
             struct exec file_exec;
             if (read(res_open, &file_exec, sizeof(struct exec)) == -1) {
-                sprintf(outp, "Error reading file %d", pids[i]);
+                sprintf(outp, "[REQUEST #%d]  Error reading file %d", request_id, pids[i]);
                 perror(outp);
                 close(res_open);
                 _exit(0);
@@ -282,13 +284,15 @@ int search_command_finished(int* pids, int pids_size, char* command){
             strcpy(prog_name, file_exec.prog_name);
             close(res_open);
 
-            char* prog_name_noargs = strtok(prog_name, " ");
-
-            int flag_equal = 1, ch, bigger_prog_name;
-            if (strcmp(command, prog_name_noargs) != 0) flag_equal = 0;
-            _exit(flag_equal);
-            if(flag_equal == 0) _exit(0);
-            else _exit(1);
+            int is_equal = 0; //1 igual, 0 diferente
+            if (strchr(command, ' ') == NULL) {  //se nao tem espaco (só "sleep") compara com o nome do prog truncado
+                char* prog_name_noargs = strtok(prog_name, " ");
+                if (strcmp(command, prog_name_noargs) == 0) is_equal = 1;
+            } 
+            else //senao compara com o nome todo
+                if (strcmp(command, prog_name) == 0) is_equal = 1;
+            
+            _exit(is_equal);
         }
     }
     
@@ -296,7 +300,7 @@ int search_command_finished(int* pids, int pids_size, char* command){
     for(int i = 0; i < pids_size; i++){
         //waitpid(resf, &status, 0);
         if (wait(&status) == -1) {
-            sprintf(outp, "Error in waiting for child process");
+            sprintf(outp, "[REQUEST #%d]  Error in waiting for child process", request_id);
             perror(outp);
             return -1;
         }
@@ -640,7 +644,7 @@ int main(int argc, char* argv[]){
                         }
 
                         // calcular numero de vezes total
-                        int total_execs_prog = search_command_finished(pids_search, pids_search_size, prog_name);
+                        int total_execs_prog = search_command_finished(pids_search, pids_search_size, prog_name, store_request_id);
 
                         // enviar string de output
                         sprintf(outp, "%s was executed %d times\n", prog_name, total_execs_prog);
