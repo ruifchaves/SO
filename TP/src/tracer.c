@@ -50,7 +50,6 @@ int execute_single(char *command) {
     char *string = strtok(command, " ");
     while (string != NULL) {
         exec_args[i] = string;
-        //printf("%s ", exec_args[i]); //TODO DEBUG para o servidor?
         string = strtok(NULL, " ");
         i++;
     }
@@ -130,7 +129,6 @@ int execute_pipeline(char *command) {
         if (isspace(string[0]))
             string = string + 1;
         prog_args[num_progs] = string;
-        //printf("%s ", prog_args[num_progs]); //TODO DEBUG para o servidor?
         string = strtok(NULL, "|");
         num_progs++;
     }
@@ -138,7 +136,6 @@ int execute_pipeline(char *command) {
 
     // Parse dos argumentos dos programas
     for (arg = 0; arg < num_progs; arg++)     {
-        //printf("prog %d: %s\n", arg, prog_args[arg]);  //TODO DEBUG para o servidor?
         char *string = strtok(prog_args[arg], " ");
         num_args = 0;
         while (string != NULL) {
@@ -250,7 +247,6 @@ int execute_pipeline(char *command) {
 int status() {
     char outp[300];
 
-    // Enviar prog id para o servidor
 
     struct exec tmp = {4, pid_pai, pid_pai, "", {0}, {0}, {0}, 0};
     write(fd_clientServer, &tmp, sizeof(struct exec));
@@ -305,19 +301,6 @@ int stats_time(int *pids, int pids_size) {
         exit(-1);
     }
 
-    // TODO
-    // Receber num de progs terminados
-    int sizell;
-    // read(fd_serverClient, &sizell, sizeof(int));
-    // if(sizell == 0){
-    //     sprintf(outp, "That aren't any programs that have already finished\n");
-    //     write(1, &outp, strlen(outp));
-    //     exit(0);
-    /*     } else if(sizell < pids_size){
-            sprintf(outp, "There haven't been as many programs that finished as your arguments\n");
-            write(1, &outp, strlen(outp));
-            exit(0); */
-    //} else {
 
     // Caso haja programas terminados. receber o tempo total de execução dos mesmos em ms
     int tot_size;
@@ -342,8 +325,8 @@ int stats_command(char *command, int *pids, int pids_size) {
         tmp.pids_search[i] = pids[i];
     }
     strcpy(tmp.prog_name, command);
-
     write(fd_clientServer, &tmp, sizeof(struct exec));
+
 
     // Abrir o pipe criado para ler msgs do servidor
     fd_serverClient = open(fifoname_read, O_RDONLY);
@@ -351,21 +334,6 @@ int stats_command(char *command, int *pids, int pids_size) {
         perror("Error opening Server->Client pipe to read");
         exit(-1);
     }
-
-    // TODO
-    // Receber num de progs terminados
-    int sizell;
-    // read(fd_serverClient, &sizell, sizeof(int));
-    // if(sizell == 0){
-    //     sprintf(outp, "That aren't any programs that have already finished\n");
-    //     write(1, &outp, strlen(outp));
-    //     exit(0);
-    /*     } else if(sizell < pids_size){
-            sprintf(outp, "There haven't been as many programs that finished as your arguments\n");
-            write(1, &outp, strlen(outp));
-            exit(0); */
-    //} else {
-
 
     // Receber num de vezes que o commando executou
     int tot_size;
@@ -398,20 +366,6 @@ int stats_uniq(int *pids, int pids_size) {
         perror("Error opening Server->Client pipe to read");
         exit(-1);
     }
-
-    // TODO
-    // Receber num de progs terminados
-    int sizell;
-    // read(fd_serverClient, &sizell, sizeof(int));
-    // if(sizell == 0){
-    //     sprintf(outp, "That aren't any programs that have already finished\n");
-    //     write(1, &outp, strlen(outp));
-    //     exit(0);
-    /*     } else if(sizell < pids_size){
-            sprintf(outp, "There haven't been as many programs that finished as your arguments\n");
-            write(1, &outp, strlen(outp));
-            exit(0); */
-    //} else {
 
     int tot_size;
     read(fd_serverClient, &tot_size, sizeof(int));
@@ -460,12 +414,12 @@ int main(int argc, char *argv[]) {
     fd_clientServer = open(fifoname_write, O_WRONLY);
     if (fd_clientServer == -1) {
         perror("Error opening Client->Server pipe to write");
-        exit(-1); // flushing output buffers and closing open files, better than return
+        return -1;
     }
 
     // Criar fifo Servidor->Cliente
     if (createFIFO() != 0)
-        exit(-1);
+        return -1;
     
     // Redirecionamento consoante argumentos
     char *query = argv[1];
