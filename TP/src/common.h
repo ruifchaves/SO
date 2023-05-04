@@ -12,7 +12,7 @@
 #include <errno.h>     //errno
 #include <sys/time.h>  //gettimeofday
 #include <ctype.h>     //isspace
-#include <limits.h>    //pipe_buf
+#include <time.h>      //strftime
 
 typedef struct exec {
     int query_int;
