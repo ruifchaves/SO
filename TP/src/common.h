@@ -28,7 +28,7 @@ typedef struct exec {
 #define fifo_cliSer "fifo_client_server"
 #define fifo_serCli "fifo_server_client"
 
-long calculate_elapsed_time(struct timeval start, struct timeval end){
+int calculate_elapsed_time(struct timeval start, struct timeval end){
     long elapsed_seconds = end.tv_sec - start.tv_sec;
     long elapsed_useconds = end.tv_usec - start.tv_usec;
     long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
@@ -36,3 +36,4 @@ long calculate_elapsed_time(struct timeval start, struct timeval end){
 }
 
 #endif
+

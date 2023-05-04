@@ -13,25 +13,13 @@ typedef struct llexec {
     struct llexec* next;
 } llexec;
 
-// Lista ligada com informações das execuções terminadas
-typedef struct llfin {
-    exec exec_info;
-    struct llfin* next;
-} llfin;
-
 llexec* currExecs;
-llfin* finExecs;
 
 
 
 // Funções auxiliares para as listas ligadas
 llexec* init_llexec() {
     llexec* head = NULL;
-    return head;
-}
-
-llfin* init_llfin() {
-    llfin* head = NULL;
     return head;
 }
 
@@ -49,68 +37,49 @@ exec* add_exec(int pid, char* name, struct timeval start) {
     return new;
 }
 
-void add_finExec(exec* finished, struct timeval end, long elapsed){
-    llfin* node = malloc(sizeof(llfin));
-    node->exec_info = *finished;
-    node->exec_info.end = end;
-    node->next = finExecs;
-    finExecs = node;
 
-    llfin_size++;
-}
-
-void add_to_file_finished(int pid, char* folder){
-    llfin* current = finExecs;
+void add_to_file_finished(llexec* finExec, char* folder){
 
     char folder_file[100];
-    sprintf(folder_file, "%s%d.txt", fin_dir, pid);
+    sprintf(folder_file, "%s%d.txt", fin_dir, finExec->exec_info.pid);
     int open_res = open(folder_file, O_CREAT | O_TRUNC | O_WRONLY, 0660);
     if (open_res < 0){
         perror("Error opening file that stores information of finished execution");
         exit(-1);
     }
 
-    int i = 0;
-    for(i=0; current->exec_info.pid != pid && i < llfin_size; i++, current=current->next);
-    if(i == llfin_size){
-        perror("Finished execution not found");
-        exit(-1);
-    }
-    else {
-        // Escrevemos a struct e depois cada valor formatado (so that's readable by struct and by text)
-        write(open_res, &current->exec_info, sizeof(struct exec));
-        char tmp[100];
-        sprintf(tmp, "\n\n");
-        write(open_res, &tmp, strlen(tmp));
+    // Escrevemos a struct e depois cada valor formatado (so that's readable by struct and by text)
+    write(open_res, &finExec->exec_info, sizeof(struct exec));
+    char tmp[100];
+    sprintf(tmp, "\n\n");
+    write(open_res, &tmp, strlen(tmp));
 
 
-        #pragma GCC diagnostic push
-        #pragma GCC diagnostic ignored "-Wformat"
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wformat"
+    
+    int pid = finExec->exec_info.pid;
+    int prog_name_size = strlen(finExec->exec_info.prog_name);
+    char prog_name[prog_name_size];
+    sprintf(prog_name, "%s", finExec->exec_info.prog_name);
+    struct timeval start = finExec->exec_info.start;
+    struct timeval end = finExec->exec_info.end;
 
-        int pid = current->exec_info.pid;
-        int prog_name_size = strlen(current->exec_info.prog_name);
-        char prog_name[prog_name_size];
-        sprintf(prog_name, "%s", current->exec_info.prog_name);
-        struct timeval start = current->exec_info.start;
-        struct timeval end = current->exec_info.end;
-        sprintf(tmp, "PID: %d\n", pid);
-        write(open_res, &tmp, strlen(tmp));
-        sprintf(tmp, "PROG_NAME: %s\n", prog_name);
-        write(open_res, &tmp, strlen(tmp));
-        sprintf(tmp, "Start Timeval: %ld\n", start);
-        write(open_res, &tmp, strlen(tmp));
-        sprintf(tmp, "End Timeval: %ld\n", end);
-        write(open_res, &tmp, strlen(tmp));
+    sprintf(tmp, "Process ID: %d\n", pid);
+    write(open_res, &tmp, strlen(tmp));
+    sprintf(tmp, "Program: %s\n", prog_name);
+    write(open_res, &tmp, strlen(tmp));
+    sprintf(tmp, "Start Time: %ld.%06ld\n", start.tv_sec, start.tv_usec);
+    write(open_res, &tmp, strlen(tmp));
+    sprintf(tmp, "End Time: %ld.%06ld\n", end.tv_sec, end.tv_usec);
+    write(open_res, &tmp, strlen(tmp));
 
-        #pragma GCC diagnostic pop
-        
-        long end_ms = end.tv_sec * 1000 + end.tv_usec / 1000;
-        long elapsed_seconds = end.tv_sec - start.tv_sec;
-        long elapsed_useconds = end.tv_usec - start.tv_usec;
-        long elapsed_time = (elapsed_seconds * 1000) + (elapsed_useconds / 1000);
-        sprintf(tmp, "Total Execution time (ms): %ld\n", elapsed_time);
-        write(open_res, &tmp, strlen(tmp));    
-    }
+    #pragma GCC diagnostic pop
+
+    int elapsed_time = calculate_elapsed_time(start, end);
+    sprintf(tmp, "Total Execution Time: %d ms\n", elapsed_time);
+    write(open_res, &tmp, strlen(tmp));
+
 }
 
 void remove_exec(int pid, char* folder, struct timeval end, long elapsed){
@@ -130,11 +99,8 @@ void remove_exec(int pid, char* folder, struct timeval end, long elapsed){
     else
         previous->next = current->next;
 
-
-    add_finExec(&current->exec_info, end, elapsed);
-
+    add_to_file_finished(current, folder);
     free(current);
-    add_to_file_finished(pid, folder);
 }
 
 void print_llexec() {
@@ -151,33 +117,9 @@ void print_llexec() {
     }
 }
 
-//TODO to be removed!
-void print_llfin() {
-    llfin* current = finExecs;
-    int i = 1;
-    while (current != NULL) {
-        char outp[200];
-        struct timeval start = current->exec_info.start;
-        struct timeval end = current->exec_info.end;
-        long start_ms = start.tv_sec * 1000 + start.tv_usec / 1000;
-        long end_ms = end.tv_sec * 1000 + end.tv_usec / 1000;
-        sprintf(outp, "[Finished Program #%d] PID %d | Program Name %s | Start Time %ld | End Time %ld\n", i, current->exec_info.pid, current->exec_info.prog_name, start_ms, end_ms);
-        write(1, &outp, strlen(outp));
-        current = current->next;
-        i++;
-    }
-}
-
 int size_llexec(){
     int i;
     llexec* current = currExecs;
-    for(i = 0; current != NULL; i++, current=current->next);
-    return i;
-}
-
-int size_llfin(){
-    int i;
-    llfin* current = finExecs;
     for(i = 0; current != NULL; i++, current=current->next);
     return i;
 }
@@ -493,7 +435,6 @@ int main(int argc, char* argv[]){
 
     // Inicializar as structs & guardar nome da pasta de execuções terminadas em var global
     currExecs = init_llexec();
-    finExecs = init_llfin();
 
     // Guardar nome da pasta com as execuções terminadas num var global
     char* folder = argv[1];
