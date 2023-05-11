@@ -1,4 +1,5 @@
 define WELCOME_BODY
+
 ############   BEM VINDO AO RASTREAMENTO E MONITORIZAÇÃO DA EXECUÇÃO DE PROGRAMAS!   ############
 
 	CLIENTE
@@ -20,6 +21,7 @@ define WELCOME_BODY
 -Listar programas únicos executados:
     ./tracer stats-uniq PID1 PID2 (...) PIDN
 
+
 	SERVIDOR
 -Executar o Servidor:
     ./monitor PIDS-folder
@@ -30,7 +32,7 @@ endef
 CC = gcc
 CFLAGS = -Wall -Wno-unused-variable -Wno-unused-but-set-variable
 
-all: folders server client
+all: folders server client welcome
 
 export WELCOME_BODY
 welcome:
