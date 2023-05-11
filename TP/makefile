@@ -1,7 +1,7 @@
 define WELCOME_BODY
 ############   BEM VINDO AO RASTREAMENTO E MONITORIZAÇÃO DA EXECUÇÃO DE PROGRAMAS!   ############
 
-	TARGET
+	CLIENTE
 -Executar um programa individual:
     ./tracer execute -u "prog arg1 (...) argN"
 
