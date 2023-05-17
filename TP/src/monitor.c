@@ -292,13 +292,42 @@ int search_command_finished(int* pids, int pids_size, char* command, int request
             close(res_open);
 
             int is_equal = 0; //1 igual, 0 diferente
-            if (strchr(command, ' ') == NULL) {  //se nao tem espaco (só "sleep") compara com o nome do prog truncado
-                char* prog_name_noargs = strtok(prog_name, " ");
-                if (strcmp(command, prog_name_noargs) == 0) is_equal = 1;
-            } 
-            else //senao compara com o nome todo
-                if (strcmp(command, prog_name) == 0) is_equal = 1;
-            
+            if (strchr(prog_name, '|') != NULL) {
+                int numMatches = 0;
+
+                char* prog_name_copy = strdup(prog_name);
+                char* programName = strtok(prog_name_copy, "|");
+                while (programName != NULL) {
+
+                    while (*programName == ' ') programName++;
+                    int len = strlen(programName);
+                    while (len > 0 && programName[len - 1] == ' ') len--;
+                    programName[len] = '\0';
+
+                    int compareResult;
+                    if (strchr(command, ' ') == NULL) {
+                        char* programName = strtok(prog_name, " ");
+                        compareResult = strcmp(command, programName);
+                    } else {
+                        compareResult = strcmp(command, programName);
+                    }
+
+                    if (compareResult == 0) {
+                        numMatches++;
+                    }
+
+                    programName = strtok(NULL, "|");
+                }
+                is_equal = numMatches;
+                free(prog_name_copy);
+            } else {
+                if (strchr(command, ' ') == NULL) {  //se nao tem espaco (só "sleep") compara com o nome do prog truncado
+                    char* prog_name_noargs = strtok(prog_name, " ");
+                    if (strcmp(command, prog_name_noargs) == 0) is_equal++;
+                } 
+                else //senao compara com o nome todo
+                    if (strcmp(command, prog_name) == 0) is_equal++;
+            }
             _exit(is_equal);
         }
     }

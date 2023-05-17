@@ -161,7 +161,7 @@ int execute_pipeline(char *command) {
         }
         else if (resf == 0) {
 
-            if (forkid == 0) {                              //TODO make following comments readable
+            if (forkid == 0) {
                 close(pipes[forkid][0]);                    // Fechar pipes[0][0]; Vai ler do stdin
                 dup2(pipes[forkid][1], STDOUT_FILENO);      // Mudar stdout para pipes[0][1]
             }
